@@ -6,7 +6,7 @@ try:
     from dotenv import load_dotenv
     load_dotenv()
 except Exception:
-    # 没装 python-dotenv 也能跑：你可以直接在 shell export 环境变量
+    # 也可以直接在终端 export 环境变量
     pass
 
 

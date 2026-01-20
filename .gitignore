@@ -7,3 +7,8 @@ __pycache__
 .env.*
 !.env.example
 *.env.local
+# 日志文件
+logs/*.log
+logs/*.log.*
+# 数据文件
+results.txt

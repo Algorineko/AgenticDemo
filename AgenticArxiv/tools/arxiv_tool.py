@@ -102,6 +102,8 @@ def format_papers_console(papers: List[Dict], top_authors: int = 3) -> str:
         lines.append(f"   发布时间: {paper['published']}")
         lines.append(f"   PDF链接: {paper['pdf_url']}")
         lines.append(f"   注释: {paper.get('comment')}")
+        lines.append(f"   摘要: {paper['summary']}")
+        lines.append(f"   全部链接: {paper['links']}")
         lines.append("-" * 80)
     return "\n".join(lines)
 
