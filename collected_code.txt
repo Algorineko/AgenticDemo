@@ -1,0 +1,748 @@
+
+================================================================================
+文件: main.py
+================================================================================
+
+
+
+================================================================================
+文件: requirements.txt
+================================================================================
+
+arxiv
+requests
+python-dotenv
+
+
+================================================================================
+文件: config.py
+================================================================================
+
+# AgenticArxiv/config.py
+from dataclasses import dataclass
+import os
+
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    # 也可以直接在终端 export 环境变量
+    pass
+
+
+@dataclass(frozen=True)
+class LLMModels:
+    agent_model: str = "gemini-3-pro-preview"
+    translate_model: str = "tab_flash_lite_preview"
+
+
+@dataclass(frozen=True)
+class Settings:
+    antigravity_base_url: str = os.getenv("LLM_BASE_URL", "https://antigravity.byssted.cn")
+    antigravity_api_key: str = os.getenv("LLM_API_KEY", "no-token-here")
+    models: LLMModels = LLMModels()
+
+
+settings = Settings()
+
+
+================================================================================
+文件: readme.md
+================================================================================
+
+# Agentic Arxiv
+本项目实现了受Model Context Protocol（MCP）启发的工具系统，允许LLM Agent发现和使用外部工具，包括ArXiv论文检索等能力。
+
+.env文件放置
+```txt
+LLM_BASE_URL=<base-url>
+LLM_API_KEY=<token>
+```
+
+
+================================================================================
+文件: api/endpoints.py
+================================================================================
+
+
+
+================================================================================
+文件: api/__init__.py
+================================================================================
+
+
+
+================================================================================
+文件: models/schemas.py
+================================================================================
+
+
+
+================================================================================
+文件: models/__init__.py
+================================================================================
+
+
+
+================================================================================
+文件: models/store.py
+================================================================================
+
+
+
+================================================================================
+文件: tools/arxiv_tool.py
+================================================================================
+
+# AgenticArxiv/tools/arxiv_tool.py
+import arxiv # type: ignore
+from datetime import datetime, timezone, timedelta
+from typing import List, Dict
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from tools.tool_registry import registry
+
+cs_categories = {
+    "*": "All Computer Science",  # 所有计算机科学领域
+    "AI": "Artificial Intelligence",  # 人工智能
+    "AR": "Hardware Architecture",  # 硬件架构
+    "CC": "Computational Complexity",  # 计算复杂性
+    "CE": "Computational Engineering, Finance, and Science",  # 计算工程、金融与科学
+    "CG": "Computational Geometry",  # 计算几何
+    "CL": "Computation and Language",  # 计算与语言
+    "CR": "Cryptography and Security",  # 密码学与安全
+    "CV": "Computer Vision and Pattern Recognition",  # 计算机视觉与模式识别
+    "CY": "Computers and Society",  # 计算机与社会
+    "DB": "Databases",  # 数据库
+    "DC": "Distributed, Parallel, and Cluster Computing",  # 分布式、并行与集群计算
+    "DL": "Digital Libraries",  # 数字图书馆
+    "DM": "Discrete Mathematics",  # 离散数学
+    "DS": "Data Structures and Algorithms",  # 数据结构与算法
+    "ET": "Emerging Technologies",  # 新兴技术
+    "FL": "Formal Languages and Automata Theory",  # 形式语言与自动机理论
+    "GL": "General Literature",  # 一般文献
+    "GR": "Graphics",  # 图形学
+    "GT": "Computer Science and Game Theory",  # 计算机科学与博弈论
+    "HC": "Human-Computer Interaction",  # 人机交互
+    "IR": "Information Retrieval",  # 信息检索
+    "IT": "Information Theory",  # 信息论
+    "LG": "Machine Learning",  # 机器学习
+    "LO": "Logic in Computer Science",  # 计算机科学中的逻辑
+    "MA": "Multiagent Systems",  # 多智能体系统
+    "MM": "Multimedia",  # 多媒体
+    "MS": "Mathematical Software",  # 数学软件
+    "NA": "Numerical Analysis",  # 数值分析
+    "NE": "Neural and Evolutionary Computing",  # 神经与进化计算
+    "NI": "Networking and Internet Architecture",  # 网络与互联网架构
+    "OH": "Other Computer Science",  # 其他计算机科学
+    "OS": "Operating Systems",  # 操作系统
+    "PF": "Performance",  # 性能
+    "PL": "Programming Languages",  # 编程语言
+    "RO": "Robotics",  # 机器人学
+    "SC": "Symbolic Computation",  # 符号计算
+    "SD": "Sound",  # 音频处理
+    "SE": "Software Engineering",  # 软件工程
+    "SI": "Social and Information Networks",  # 社会与信息网络
+    "SY": "Systems and Control",  # 系统与控制
+}
+
+
+def get_recently_submitted_cs_papers(
+    max_results: int = 50, aspect: str = "*", days: int = 7
+) -> List[Dict]:
+    """
+    获取最近 days 天内提交的 cs.<aspect> 论文列表
+
+    Args:
+        max_results: 最大返回结果数,默认50
+        aspect: cs子领域, "*" 表示全部子领域，否则如 "LO" / "AI" 等
+        days: 查询最近多少天的论文, 默认7天
+
+    Returns:
+        论文信息列表，每个论文包含标题、作者、摘要等信息
+    """
+    now_utc = datetime.now(timezone.utc)
+    start_date = (now_utc - timedelta(days=days)).strftime("%Y%m%d")
+    end_date = now_utc.strftime("%Y%m%d")
+
+    if aspect == "*":
+        query = f"cat:cs.* AND submittedDate:[{start_date} TO {end_date}]"
+    else:
+        query = f"cat:cs.{aspect} AND submittedDate:[{start_date} TO {end_date}]"
+
+    client = arxiv.Client()
+    search = arxiv.Search(
+        query=query,
+        max_results=max_results,
+        sort_by=arxiv.SortCriterion.SubmittedDate,
+        sort_order=arxiv.SortOrder.Descending,
+    )
+
+    papers: List[Dict] = []
+    for result in client.results(search):
+        paper_info = {
+            "id": result.get_short_id(),
+            "title": result.title,
+            "authors": [author.name for author in result.authors],
+            "summary": (result.summary[:200] + "...")
+            if len(result.summary) > 200
+            else result.summary,
+            "published": result.published.strftime("%Y-%m-%d %H:%M:%S"),
+            "updated": result.updated.strftime("%Y-%m-%d %H:%M:%S")
+            if result.updated
+            else None,
+            "pdf_url": result.pdf_url,
+            "primary_category": result.primary_category,
+            "categories": result.categories,
+            "comment": result.comment,
+            "links": [link.href for link in result.links],
+        }
+        papers.append(paper_info)
+
+    return papers
+
+
+def format_papers_console(papers: List[Dict], top_authors: int = 3) -> str:
+    if not papers:
+        return "未获取到最近提交的论文\n"
+    lines = []
+    for i, paper in enumerate(papers, 1):
+        lines.append(f"{i}. {paper['title']}")
+        lines.append(f"   作者: {', '.join(paper['authors'][:top_authors])}")
+        lines.append(f"   发布时间: {paper['published']}")
+        lines.append(f"   PDF链接: {paper['pdf_url']}")
+        lines.append(f"   注释: {paper.get('comment')}")
+        lines.append(f"   摘要: {paper['summary']}")
+        lines.append(f"   全部链接: {paper['links']}")
+        lines.append("-" * 80)
+    return "\n".join(lines)
+
+
+# 定义参数模式 (JSON Schema)
+ARXIV_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "max_results": {
+            "type": "integer",
+            "description": "最大返回结果数",
+            "minimum": 1,
+            "maximum": 100,
+            "default": 50,
+        },
+        "aspect": {
+            "type": "string",
+            "description": "计算机科学子领域代码",
+            "enum": list(cs_categories.keys()),
+            "default": "*",
+        },
+        "days": {
+            "type": "integer",
+            "description": "查询最近多少天的论文",
+            "minimum": 1,
+            "maximum": 30,
+            "default": 7,
+        },
+    },
+    "required": [],
+}
+
+# 注册工具到全局注册表
+registry.register_tool(
+    name="get_recently_submitted_cs_papers",
+    description="获取最近提交的计算机科学领域论文列表，支持按子领域筛选",
+    parameter_schema=ARXIV_TOOL_SCHEMA,
+    func=get_recently_submitted_cs_papers,
+)
+
+# 注册格式化工具
+FORMAT_TOOL_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "papers": {
+            "type": "array",
+            "description": "论文信息列表",
+            "items": {"type": "object"},
+        },
+        "top_authors": {
+            "type": "integer",
+            "description": "显示前几位作者",
+            "minimum": 1,
+            "default": 3,
+        },
+    },
+    "required": ["papers"],
+}
+
+registry.register_tool(
+    name="format_papers_console",
+    description="格式化论文列表为控制台可读的文本格式",
+    parameter_schema=FORMAT_TOOL_SCHEMA,
+    func=format_papers_console,
+)
+
+
+if __name__ == "__main__":
+    # 测试工具注册
+    ASPECT = "CL"
+    papers = get_recently_submitted_cs_papers(max_results=20, aspect=ASPECT)
+    print(format_papers_console(papers))
+
+    # 测试通过注册表调用
+    print("\n=== 通过工具注册表调用 ===")
+    result = registry.execute_tool(
+        "get_recently_submitted_cs_papers",
+        {"max_results": 5, "aspect": "AI", "days": 7},
+    )
+    print(f"获取到 {len(result)} 篇论文")
+
+
+================================================================================
+文件: tools/pdf_translate_tool.py
+================================================================================
+
+
+
+================================================================================
+文件: tools/tool_registry.py
+================================================================================
+
+# AgenticArxiv/tools/tool_registry.py
+from typing import Dict, Any, Callable, List, Optional
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
+
+class ToolRegistry:
+    """
+    工具注册表，管理所有可用的工具
+    """
+
+    def __init__(self):
+        self._tools: Dict[str, Dict[str, Any]] = {}
+
+    def register_tool(
+        self,
+        name: str,
+        description: str,
+        parameter_schema: Dict[str, Any],
+        func: Callable,
+    ) -> None:
+        """
+        注册一个工具
+
+        Args:
+            name: 工具名称（唯一标识）
+            description: 工具描述, 说明工具的功能
+            parameter_schema: 参数模式, 遵循JSON Schema规范
+            func: 工具函数
+        """
+        self._tools[name] = {
+            "name": name,
+            "description": description,
+            "parameters": parameter_schema,
+            "func": func,
+        }
+
+    def get_tool(self, name: str) -> Optional[Dict[str, Any]]:
+        """获取指定名称的工具"""
+        return self._tools.get(name)
+
+    def list_tools(self) -> List[Dict[str, Any]]:
+        """列出所有可用工具"""
+        return [
+            {
+                "name": tool["name"],
+                "description": tool["description"],
+                "parameters": tool["parameters"],
+            }
+            for tool in self._tools.values()
+        ]
+
+    def execute_tool(self, name: str, arguments: Dict[str, Any]) -> Any:
+        """
+        执行指定工具
+
+        Args:
+            name: 工具名称
+            arguments: 工具参数
+
+        Returns:
+            工具执行结果
+
+        Raises:
+            ValueError: 如果工具不存在或参数无效
+        """
+        if name not in self._tools:
+            raise ValueError(f"工具 '{name}' 未注册")
+
+        tool = self._tools[name]
+        try:
+            # 将JSON参数传递给工具函数
+            return tool["func"](**arguments)
+        except TypeError as e:
+            raise ValueError(f"工具参数错误: {str(e)}")
+        except Exception as e:
+            raise RuntimeError(f"工具执行失败: {str(e)}")
+
+
+# 创建全局工具注册表实例
+registry = ToolRegistry()
+
+
+================================================================================
+文件: tools/__init__.py
+================================================================================
+
+
+
+================================================================================
+文件: utils/logger.py
+================================================================================
+
+
+
+================================================================================
+文件: utils/llm_client.py
+================================================================================
+
+# AgenticArxiv/utils/llm_client.py
+import os
+from typing import Any, Dict, List, Optional
+import requests
+
+
+class LLMClient:
+    """
+    对接 OpenAI-compatible /v1/chat/completions 接口
+    """
+
+    def __init__(
+        self,
+        base_url: str,
+        api_key: str,
+        timeout_s: int = 60,
+    ) -> None:
+        self.base_url = base_url.rstrip("/")
+        self.api_key = api_key
+        self.timeout_s = timeout_s
+
+    def chat_completions(
+        self,
+        model: str,
+        messages: List[Dict[str, str]],
+        temperature: float = 0.7,
+        max_tokens: int = 1000,
+        stream: bool = False,
+        extra: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self.base_url}/v1/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+        }
+        payload: Dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+            "stream": stream,
+        }
+        if extra:
+            payload.update(extra)
+
+        resp = requests.post(url, headers=headers, json=payload, timeout=self.timeout_s)
+        resp.raise_for_status()
+        return resp.json()
+
+
+def get_env_llm_client() -> LLMClient:
+    """
+    从环境变量读取：
+    - LLM_BASE_URL   默认: https://antigravity.byssted.cn
+    - LLM_API_KEY    必填
+    """
+    base_url = os.getenv("LLM_BASE_URL", "https://antigravity.byssted.cn")
+    api_key = os.getenv("LLM_API_KEY", "no-token-here")
+    if not api_key:
+        raise RuntimeError("Missing env: LLM_API_KEY (请在 .env 或 shell 环境中设置)")
+    return LLMClient(base_url=base_url, api_key=api_key)
+
+
+================================================================================
+文件: utils/__init__.py
+================================================================================
+
+
+
+================================================================================
+文件: agents/context_manager.py
+================================================================================
+
+
+
+================================================================================
+文件: agents/__init__.py
+================================================================================
+
+
+
+================================================================================
+文件: agents/agent_engine.py
+================================================================================
+
+
+
+================================================================================
+文件: tests/test_modules.py
+================================================================================
+
+# AgenticArxiv/tests/test_modules.py
+import argparse
+import sys
+import os
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from tools.arxiv_tool import get_recently_submitted_cs_papers, format_papers_console
+from utils.llm_client import get_env_llm_client
+from config import settings
+from tools.tool_registry import registry
+
+
+def test_arxiv(aspect: str, max_results: int) -> None:
+    # 直接调用
+    papers = get_recently_submitted_cs_papers(max_results=max_results, aspect=aspect)
+    print(format_papers_console(papers))
+    
+    # 通过注册表调用
+    print("\n" + "="*60)
+    print("通过工具注册表调用:")
+    result = registry.execute_tool(
+        "get_recently_submitted_cs_papers",
+        {"max_results": max_results, "aspect": aspect}
+    )
+    print(f"成功获取 {len(result)} 篇论文")
+
+
+def test_llm(prompt: str) -> None:
+    client = get_env_llm_client()
+    resp = client.chat_completions(
+        model=settings.models.agent_model,
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.7,
+        max_tokens=1000,
+        stream=False,
+    )
+    # OpenAI-compatible 的常规字段：choices[0].message.content
+    content = resp.get("choices", [{}])[0].get("message", {}).get("content", "")
+    print(content or resp)
+
+def test_tools() -> None:
+    """新增：测试工具注册表"""
+    print("=== 工具注册表测试 ===")
+    tools = registry.list_tools()
+    print(f"注册的工具数量: {len(tools)}")
+    for tool in tools:
+        print(f"- {tool['name']}: {tool['description']}")
+
+
+def main():
+    MAX_RESULTS = 20
+    CS_ASPECT = "*"
+
+    parser = argparse.ArgumentParser()
+    sub = parser.add_subparsers(dest="cmd", required=True)
+
+    p1 = sub.add_parser("arxiv", help="测试 ArXiv 检索")
+    p1.add_argument("--aspect", default=CS_ASPECT, help='cs 子领域，如 LO/AI/LG,或 "*"')
+    p1.add_argument("--max", type=int, default=MAX_RESULTS, help="最大结果数")
+
+    p2 = sub.add_parser("llm", help="测试 LLM chat/completions")
+    p2.add_argument(
+        "--prompt", default="请介绍计算机科学领域新颖的研究课题", help="LLM 提示词"
+    )
+
+    p3 = sub.add_parser("tools", help="测试工具注册表")
+    p3.add_argument("--list", action="store_true", help="列出所有工具")
+
+    args = parser.parse_args()
+
+    if args.cmd == "arxiv":
+        test_arxiv(aspect=args.aspect, max_results=args.max)
+    elif args.cmd == "llm":
+        test_llm(prompt=args.prompt)
+    elif args.cmd == "tools": 
+        test_tools()
+
+if __name__ == "__main__":
+    main()
+
+
+================================================================================
+文件: tests/__init__.py
+================================================================================
+
+
+
+================================================================================
+文件: tests/test_smoke.py
+================================================================================
+
+
+
+================================================================================
+文件: tests/test_tool_registry.py
+================================================================================
+
+# AgenticArxiv/tests/test_tool_registry.py
+import argparse
+import sys
+import os
+import json
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from tools.tool_registry import registry
+from tools.arxiv_tool import cs_categories
+
+
+def test_list_tools():
+    """测试列出所有工具"""
+    print("=== 可用工具列表 ===")
+    tools = registry.list_tools()
+    for i, tool in enumerate(tools, 1):
+        print(f"{i}. {tool['name']}")
+        print(f"   描述: {tool['description']}")
+        print(
+            f"   参数: {json.dumps(tool['parameters'], ensure_ascii=False, indent=4)}"
+        )
+        print()
+
+
+def test_execute_tool(name: str, args: dict):
+    """测试执行特定工具"""
+    print(f"=== 测试工具: {name} ===")
+    print(f"参数: {json.dumps(args, ensure_ascii=False)}")
+
+    try:
+        result = registry.execute_tool(name, args)
+        if name == "get_recently_submitted_cs_papers":
+            print(f"成功获取 {len(result)} 篇论文")
+            # 显示前几篇论文的标题
+            for i, paper in enumerate(result[:3], 1):
+                print(f"  {i}. {paper['title'][:50]}...")
+            if len(result) > 3:
+                print("  ...")
+        elif name == "format_papers_console":
+            print("格式化结果:")
+            print(result[:200] + "..." if len(result) > 200 else result)
+    except Exception as e:
+        print(f"工具执行失败: {str(e)}")
+
+
+def test_aspect_validation():
+    """测试参数验证"""
+    print("=== 测试参数验证 ===")
+
+    # 测试无效的aspect
+    try:
+        result = registry.execute_tool(
+            "get_recently_submitted_cs_papers",
+            {"aspect": "INVALID_CATEGORY", "max_results": 2},
+        )
+        print(type(result))
+    except Exception as e:
+        print(f"参数验证生效: {str(e)}")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="测试工具注册表")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    # list 命令
+    subparsers.add_parser("list", help="列出所有注册的工具")
+
+    # test 命令
+    test_parser = subparsers.add_parser("test", help="测试特定工具")
+    test_parser.add_argument(
+        "--tool",
+        required=True,
+        choices=["arxiv", "format"],
+        help="要测试的工具: arxiv 或 format",
+    )
+    test_parser.add_argument(
+        "--max-results", type=int, default=3, help="最大结果数（仅限arxiv工具）"
+    )
+    test_parser.add_argument(
+        "--aspect",
+        default="AI",
+        help=f"CS子领域，可选值: {', '.join(list(cs_categories.keys())[:5])}...",
+    )
+    test_parser.add_argument(
+        "--days", type=int, default=7, help="查询天数（仅限arxiv工具）"
+    )
+
+    # validate 命令
+    subparsers.add_parser("validate", help="测试参数验证")
+
+    args = parser.parse_args()
+
+    if args.command == "list":
+        test_list_tools()
+
+    elif args.command == "test":
+        if args.tool == "arxiv":
+            test_execute_tool(
+                "get_recently_submitted_cs_papers",
+                {
+                    "max_results": args.max_results,
+                    "aspect": args.aspect,
+                    "days": args.days,
+                },
+            )
+        elif args.tool == "format":
+            # 先获取一些论文数据用于测试格式化工具
+            papers = registry.execute_tool(
+                "get_recently_submitted_cs_papers", {"max_results": 2, "aspect": "AI"}
+            )
+            test_execute_tool(
+                "format_papers_console", {"papers": papers, "top_authors": 2}
+            )
+
+    elif args.command == "validate":
+        test_aspect_validation()
+
+
+if __name__ == "__main__":
+    main()
+
+
+================================================================================
+文件: tests/readme.md
+================================================================================
+
+test_modules.py
+组件临时测试：
+```sh
+python ./test_modules.py arxiv --aspect "*" --max 20 > ./results.txt
+python ./test_modules.py llm --prompt "请介绍计算机科学领域新颖的研究课题"
+python tests/test_modules.py tools
+```
+
+test_tool_registry.py
+```sh
+# 列出所有工具
+python tests/test_tool_registry.py list
+# 测试arXiv工具
+python tests/test_tool_registry.py test --tool arxiv --aspect AI --max-results 5
+# 测试格式化工具
+python tests/test_tool_registry.py test --tool format
+# 测试参数验证
+python tests/test_tool_registry.py validate
+```
+
