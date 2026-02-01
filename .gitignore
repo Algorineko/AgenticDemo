@@ -13,3 +13,4 @@ logs/*.log.*
 # 数据文件
 results.txt
 temp.txt
+collected_code.txt

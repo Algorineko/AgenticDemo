@@ -20,7 +20,6 @@ import argparse
 from pathlib import Path
 import fnmatch
 from typing import Set, List, Dict, Optional
-import re
 
 class CodeCollector:
     def __init__(self, 
@@ -189,7 +188,7 @@ class CodeCollector:
             # 简单的文本文件检查（非严谨）
             try:
                 return content.decode('utf-8', errors='ignore')
-            except:
+            except:  # noqa: E722
                 return None
                 
         except Exception as e:
