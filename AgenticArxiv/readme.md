@@ -21,3 +21,11 @@ pdf2zh ./pdf-raw/3690624.3709231.pdf -s bing -o ./pdf-translated/ [-p 1] [--debu
 # case
 pdf2zh /home/dev/AgenticDemo/AgenticArxiv/output/pdf_raw/2601.22156v1.pdf -s bing -o /home/dev/AgenticDemo/AgenticArxiv/output/pdf_translated -t 3
 ``` 
+
+### FastAPI
+```sh
+# 启动FastAPI
+uvicorn api.app:app --host 0.0.0.0 --port 8000 --reload
+# 查看Swagger文档
+http://127.0.0.1:8000/docs
+```

@@ -1,7 +1,7 @@
 # AgenticArxiv/tools/arxiv_tool.py
 import arxiv  # type: ignore
 from datetime import datetime, timezone, timedelta
-from typing import List, Dict
+from typing import List, Dict, Optional
 import sys
 import os
 
@@ -11,63 +11,65 @@ from tools.tool_registry import registry
 from utils.file_writer import save_papers_to_file
 
 cs_categories = {
-    "*": "All Computer Science",  # 所有计算机科学领域
-    "AI": "Artificial Intelligence",  # 人工智能
-    "AR": "Hardware Architecture",  # 硬件架构
-    "CC": "Computational Complexity",  # 计算复杂性
-    "CE": "Computational Engineering, Finance, and Science",  # 计算工程、金融与科学
-    "CG": "Computational Geometry",  # 计算几何
-    "CL": "Computation and Language",  # 计算与语言
-    "CR": "Cryptography and Security",  # 密码学与安全
-    "CV": "Computer Vision and Pattern Recognition",  # 计算机视觉与模式识别
-    "CY": "Computers and Society",  # 计算机与社会
-    "DB": "Databases",  # 数据库
-    "DC": "Distributed, Parallel, and Cluster Computing",  # 分布式、并行与集群计算
-    "DL": "Digital Libraries",  # 数字图书馆
-    "DM": "Discrete Mathematics",  # 离散数学
-    "DS": "Data Structures and Algorithms",  # 数据结构与算法
-    "ET": "Emerging Technologies",  # 新兴技术
-    "FL": "Formal Languages and Automata Theory",  # 形式语言与自动机理论
-    "GL": "General Literature",  # 一般文献
-    "GR": "Graphics",  # 图形学
-    "GT": "Computer Science and Game Theory",  # 计算机科学与博弈论
-    "HC": "Human-Computer Interaction",  # 人机交互
-    "IR": "Information Retrieval",  # 信息检索
-    "IT": "Information Theory",  # 信息论
-    "LG": "Machine Learning",  # 机器学习
-    "LO": "Logic in Computer Science",  # 计算机科学中的逻辑
-    "MA": "Multiagent Systems",  # 多智能体系统
-    "MM": "Multimedia",  # 多媒体
-    "MS": "Mathematical Software",  # 数学软件
-    "NA": "Numerical Analysis",  # 数值分析
-    "NE": "Neural and Evolutionary Computing",  # 神经与进化计算
-    "NI": "Networking and Internet Architecture",  # 网络与互联网架构
-    "OH": "Other Computer Science",  # 其他计算机科学
-    "OS": "Operating Systems",  # 操作系统
-    "PF": "Performance",  # 性能
-    "PL": "Programming Languages",  # 编程语言
-    "RO": "Robotics",  # 机器人学
-    "SC": "Symbolic Computation",  # 符号计算
-    "SD": "Sound",  # 音频处理
-    "SE": "Software Engineering",  # 软件工程
-    "SI": "Social and Information Networks",  # 社会与信息网络
-    "SY": "Systems and Control",  # 系统与控制
+    "*": "All Computer Science",
+    "AI": "Artificial Intelligence",
+    "AR": "Hardware Architecture",
+    "CC": "Computational Complexity",
+    "CE": "Computational Engineering, Finance, and Science",
+    "CG": "Computational Geometry",
+    "CL": "Computation and Language",
+    "CR": "Cryptography and Security",
+    "CV": "Computer Vision and Pattern Recognition",
+    "CY": "Computers and Society",
+    "DB": "Databases",
+    "DC": "Distributed, Parallel, and Cluster Computing",
+    "DL": "Digital Libraries",
+    "DM": "Discrete Mathematics",
+    "DS": "Data Structures and Algorithms",
+    "ET": "Emerging Technologies",
+    "FL": "Formal Languages and Automata Theory",
+    "GL": "General Literature",
+    "GR": "Graphics",
+    "GT": "Computer Science and Game Theory",
+    "HC": "Human-Computer Interaction",
+    "IR": "Information Retrieval",
+    "IT": "Information Theory",
+    "LG": "Machine Learning",
+    "LO": "Logic in Computer Science",
+    "MA": "Multiagent Systems",
+    "MM": "Multimedia",
+    "MS": "Mathematical Software",
+    "NA": "Numerical Analysis",
+    "NE": "Neural and Evolutionary Computing",
+    "NI": "Networking and Internet Architecture",
+    "OH": "Other Computer Science",
+    "OS": "Operating Systems",
+    "PF": "Performance",
+    "PL": "Programming Languages",
+    "RO": "Robotics",
+    "SC": "Symbolic Computation",
+    "SD": "Sound",
+    "SE": "Software Engineering",
+    "SI": "Social and Information Networks",
+    "SY": "Systems and Control",
 }
 
 
+def _default_output_path() -> str:
+    # 项目根目录 = tools/ 的上一级
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(project_root, "output", "recent_cs_papers.txt")
+
+
 def get_recently_submitted_cs_papers(
-    max_results: int = 50, aspect: str = "*", days: int = 7
+    max_results: int = 50,
+    aspect: str = "*",
+    days: int = 7,
+    output_path: Optional[str] = None,
+    save_to_file: bool = True,
 ) -> List[Dict]:
     """
     获取最近 days 天内提交的 cs.<aspect> 论文列表
-
-    Args:
-        max_results: 最大返回结果数,默认50
-        aspect: cs子领域, "*" 表示全部子领域，否则如 "LO" / "AI" 等
-        days: 查询最近多少天的论文, 默认7天
-
-    Returns:
-        论文信息列表，每个论文包含标题、作者、摘要等信息
     """
     now_utc = datetime.now(timezone.utc)
     start_date = (now_utc - timedelta(days=days)).strftime("%Y%m%d")
@@ -106,15 +108,15 @@ def get_recently_submitted_cs_papers(
             "links": [link.href for link in result.links],
         }
         papers.append(paper_info)
-        # 自动保存论文到文件
-        if papers:
-            output_path = "/home/dev/AgenticDemo/AgenticArxiv/output/recent_cs_papers.txt"
-            save_papers_to_file(papers, output_path)
+
+    # ✅ 只保存一次
+    if save_to_file:
+        path = output_path or _default_output_path()
+        save_papers_to_file(papers, path)
 
     return papers
 
 
-# 定义参数模式 (JSON Schema)
 ARXIV_TOOL_SCHEMA = {
     "type": "object",
     "properties": {
@@ -138,11 +140,19 @@ ARXIV_TOOL_SCHEMA = {
             "maximum": 30,
             "default": 7,
         },
+        "output_path": {
+            "type": "string",
+            "description": "可选：保存到指定文件路径；不传则用项目 output/recent_cs_papers.txt",
+        },
+        "save_to_file": {
+            "type": "boolean",
+            "description": "是否将论文列表写入文件",
+            "default": True,
+        },
     },
     "required": [],
 }
 
-# 注册工具到全局注册表
 registry.register_tool(
     name="get_recently_submitted_cs_papers",
     description="获取最近提交的计算机科学领域论文列表，支持按子领域筛选",
@@ -152,14 +162,6 @@ registry.register_tool(
 
 
 if __name__ == "__main__":
-    # 测试工具注册
     ASPECT = "CL"
     papers = get_recently_submitted_cs_papers(max_results=20, aspect=ASPECT)
-
-    # 测试通过注册表调用
-    print("\n=== 通过工具注册表调用 ===")
-    result = registry.execute_tool(
-        "get_recently_submitted_cs_papers",
-        {"max_results": 5, "aspect": "AI", "days": 7},
-    )
-    print(f"获取到 {len(result)} 篇论文")
+    print(f"获取到 {len(papers)} 篇论文")

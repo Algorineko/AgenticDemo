@@ -4,6 +4,8 @@ import re
 from typing import Dict, Any, Optional, Tuple
 import sys
 import os
+from models.schemas import Paper
+from models.store import store
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -22,10 +24,11 @@ class ReActAgent:
         self.llm_client = llm_client
         self.context = ContextManager()
         self.max_iterations = 5  # 最大迭代次数
+        self.session_id = "default"
 
         # 确保工具被注册 - 导入工具模块
         try:
-            import tools.arxiv_tool
+            import tools.arxiv_tool  # noqa: F401
 
             log.info(f"已导入工具模块，注册了 {len(registry.list_tools())} 个工具")
         except ImportError as e:
@@ -152,6 +155,9 @@ class ReActAgent:
             if tool_name == "get_recently_submitted_cs_papers":
                 if isinstance(result, list):
                     if result:
+                        # 短期记忆
+                        papers_obj = [Paper(**p) for p in result]
+                        store.set_last_papers(self.session_id, papers_obj)
                         # 获取论文详细信息
                         papers_count = len(result)
                         paper_titles = [
@@ -195,7 +201,9 @@ class ReActAgent:
             log.error(error_msg, exc_info=True)  # 记录完整异常信息
             return error_msg
 
-    def run(self, task: str, agent_model: str = None) -> Dict[str, Any]:
+    def run(
+        self, task: str, agent_model: str = None, session_id: str = "default"
+    ) -> Dict[str, Any]:
         """
         运行ReAct Agent
 
@@ -207,6 +215,7 @@ class ReActAgent:
             Dict包含执行结果和历史记录
         """
         log.info(f"开始执行任务: {task}")
+        self.session_id = session_id
 
         if agent_model is None:
             agent_model = settings.models.agent_model

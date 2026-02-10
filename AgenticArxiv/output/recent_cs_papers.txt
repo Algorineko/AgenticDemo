@@ -1,253 +1,251 @@
 ================================================================================
 ArXiv 计算机科学论文列表
-生成时间: 2026-02-01 15:54:41
+生成时间: 2026-02-11 01:26:06
 论文数量: 15
 ================================================================================
 
-论文 1: Discovering Hidden Gems in Model Repositories
+论文 1: Robustness Is a Function, Not a Number: A Factorized Comprehensive Study of OOD Robustness in Vision-Based Driving
 ------------------------------------------------------------
-ID: 2601.22157v1
-作者: Jonathan Kahana, Eliahu Horwitz, Yedid Hoshen
-发表时间: 2026-01-29 18:59:55
-更新时间: 2026-01-29 18:59:55
+ID: 2602.09018v1
+作者: Amir Mallak, Alaa Maalouf
+发表时间: 2026-02-09 18:59:03
+更新时间: 2026-02-09 18:59:03
+主要分类: cs.RO
+所有分类: cs.RO, cs.AI, cs.CV, cs.LG
+PDF链接: https://arxiv.org/pdf/2602.09018v1
+摘要: Out of distribution (OOD) robustness in autonomous driving is often reduced to a single number, hiding what breaks a policy. We decompose environments along five axes: scene (rural/urban), season, wea...
+相关链接:
+  - https://arxiv.org/abs/2602.09018v1
+  - https://arxiv.org/pdf/2602.09018v1
+
+================================================================================
+
+论文 2: Contact-Anchored Policies: Contact Conditioning Creates Strong Robot Utility Models
+------------------------------------------------------------
+ID: 2602.09017v1
+作者: Zichen Jeff Cui, Omar Rayyan, Haritheja Etukuru, Bowen Tan, Zavier Andrianarivo, Zicheng Teng, Yihang Zhou, Krish Mehta, Nicholas Wojno, Kevin Yuanbo Wu, Manan H Anjaria, Ziyuan Wu, Manrong Mao, Guangxun Zhang, Binit Shah, Yejin Kim, Soumith Chintala, Lerrel Pinto, Nur Muhammad Mahi Shafiullah
+发表时间: 2026-02-09 18:58:50
+更新时间: 2026-02-09 18:58:50
+主要分类: cs.RO
+所有分类: cs.RO, cs.LG
+PDF链接: https://arxiv.org/pdf/2602.09017v1
+摘要: The prevalent paradigm in robot learning attempts to generalize across environments, embodiments, and tasks with language prompts at runtime. A fundamental tension limits this approach: language is of...
+相关链接:
+  - https://arxiv.org/abs/2602.09017v1
+  - https://arxiv.org/pdf/2602.09017v1
+
+================================================================================
+
+论文 3: Next-Gen CAPTCHAs: Leveraging the Cognitive Gap for Scalable and Diverse GUI-Agent Defense
+------------------------------------------------------------
+ID: 2602.09012v1
+作者: Jiacheng Liu, Yaxin Luo, Jiacheng Cui, Xinyi Shang, Xiaohan Zhao, Zhiqiang Shen
+发表时间: 2026-02-09 18:55:33
+更新时间: 2026-02-09 18:55:33
 主要分类: cs.LG
-所有分类: cs.LG, cs.CL
-PDF链接: https://arxiv.org/pdf/2601.22157v1
-摘要: Public repositories host millions of fine-tuned models, yet community usage remains disproportionately concentrated on a small number of foundation checkpoints. We investigate whether this concentrati...
+所有分类: cs.LG, cs.AI, cs.CL
+PDF链接: https://arxiv.org/pdf/2602.09012v1
+备注: Project page at https://greenoso.github.io/NextGen-CAPTCHAs_webpage/
+摘要: The rapid evolution of GUI-enabled agents has rendered traditional CAPTCHAs obsolete. While previous benchmarks like OpenCaptchaWorld established a baseline for evaluating multimodal agents, recent ad...
 相关链接:
-  - https://arxiv.org/abs/2601.22157v1
-  - https://arxiv.org/pdf/2601.22157v1
+  - https://arxiv.org/abs/2602.09012v1
+  - https://arxiv.org/pdf/2602.09012v1
 
 ================================================================================
 
-论文 2: Hybrid Linear Attention Done Right: Efficient Distillation and Effective Architectures for Extremely Long Contexts
+论文 4: ANCRe: Adaptive Neural Connection Reassignment for Efficient Depth Scaling
 ------------------------------------------------------------
-ID: 2601.22156v1
-作者: Yingfa Chen, Zhen Leng Thai, Zihan Zhou, Zhu Zhang, Xingyu Shen, Shuo Wang, Chaojun Xiao, Xu Han, Zhiyuan Liu
-发表时间: 2026-01-29 18:59:53
-更新时间: 2026-01-29 18:59:53
-主要分类: cs.CL
-所有分类: cs.CL, cs.AI, cs.LG
-PDF链接: https://arxiv.org/pdf/2601.22156v1
-备注: 20 pages, 8 figures
-摘要: Hybrid Transformer architectures, which combine softmax attention blocks and recurrent neural networks (RNNs), have shown a desirable performance-throughput tradeoff for long-context modeling, but the...
-相关链接:
-  - https://arxiv.org/abs/2601.22156v1
-  - https://arxiv.org/pdf/2601.22156v1
-
-================================================================================
-
-论文 3: Late Breaking Results: Conversion of Neural Networks into Logic Flows for Edge Computing
-------------------------------------------------------------
-ID: 2601.22151v1
-作者: Daniel Stein, Shaoyi Huang, Rolf Drechsler, Bing Li, Grace Li Zhang
-发表时间: 2026-01-29 18:59:50
-更新时间: 2026-01-29 18:59:50
+ID: 2602.09009v1
+作者: Yilang Zhang, Bingcong Li, Niao He, Georgios B. Giannakis
+发表时间: 2026-02-09 18:54:18
+更新时间: 2026-02-09 18:54:18
 主要分类: cs.LG
-所有分类: cs.LG, eess.SY
-PDF链接: https://arxiv.org/pdf/2601.22151v1
-备注: accepted by DATE2026
-摘要: Neural networks have been successfully applied in various resource-constrained edge devices, where usually central processing units (CPUs) instead of graphics processing units exist due to limited pow...
+所有分类: cs.LG, cs.AI
+PDF链接: https://arxiv.org/pdf/2602.09009v1
+摘要: Scaling network depth has been a central driver behind the success of modern foundation models, yet recent investigations suggest that deep layers are often underutilized. This paper revisits the defa...
 相关链接:
-  - https://arxiv.org/abs/2601.22151v1
-  - https://arxiv.org/pdf/2601.22151v1
+  - https://arxiv.org/abs/2602.09009v1
+  - https://arxiv.org/pdf/2602.09009v1
 
 ================================================================================
 
-论文 4: FineInstructions: Scaling Synthetic Instructions to Pre-Training Scale
+论文 5: ShapeCond: Fast Shapelet-Guided Dataset Condensation for Time Series Classification
 ------------------------------------------------------------
-ID: 2601.22146v1
-作者: Ajay Patel, Colin Raffel, Chris Callison-Burch
-发表时间: 2026-01-29 18:58:47
-更新时间: 2026-01-29 18:58:47
-主要分类: cs.CL
-所有分类: cs.CL, cs.LG
-PDF链接: https://arxiv.org/pdf/2601.22146v1
-摘要: Due to limited supervised training data, large language models (LLMs) are typically pre-trained via a self-supervised "predict the next word" objective on a vast amount of unstructured text data. To m...
-相关链接:
-  - https://arxiv.org/abs/2601.22146v1
-  - https://arxiv.org/pdf/2601.22146v1
-
-================================================================================
-
-论文 5: Routing the Lottery: Adaptive Subnetworks for Heterogeneous Data
-------------------------------------------------------------
-ID: 2601.22141v1
-作者: Grzegorz Stefanski, Alberto Presta, Michal Byra
-发表时间: 2026-01-29 18:56:41
-更新时间: 2026-01-29 18:56:41
-主要分类: cs.AI
-所有分类: cs.AI, cs.CV, cs.LG
-PDF链接: https://arxiv.org/pdf/2601.22141v1
-摘要: In pruning, the Lottery Ticket Hypothesis posits that large networks contain sparse subnetworks, or winning tickets, that can be trained in isolation to match the performance of their dense counterpar...
-相关链接:
-  - https://arxiv.org/abs/2601.22141v1
-  - https://arxiv.org/pdf/2601.22141v1
-
-================================================================================
-
-论文 6: PRISM: Distribution-free Adaptive Computation of Matrix Functions for Accelerating Neural Network Training
-------------------------------------------------------------
-ID: 2601.22137v1
-作者: Shenghao Yang, Zhichao Wang, Oleg Balabanov, N. Benjamin Erichson, Michael W. Mahoney
-发表时间: 2026-01-29 18:55:46
-更新时间: 2026-01-29 18:55:46
-主要分类: cs.LG
-所有分类: cs.LG, cs.AI, math.NA, math.OC
-PDF链接: https://arxiv.org/pdf/2601.22137v1
-摘要: Matrix functions such as square root, inverse roots, and orthogonalization play a central role in preconditioned gradient methods for neural network training. This has motivated the development of ite...
-相关链接:
-  - https://arxiv.org/abs/2601.22137v1
-  - https://arxiv.org/pdf/2601.22137v1
-
-================================================================================
-
-论文 7: StepShield: When, Not Whether to Intervene on Rogue Agents
-------------------------------------------------------------
-ID: 2601.22136v1
-作者: Gloria Felicia, Michael Eniolade, Jinfeng He, Zitha Sasindran, Hemant Kumar, Milan Hussain Angati, Sandeep Bandarupalli
-发表时间: 2026-01-29 18:55:46
-更新时间: 2026-01-29 18:55:46
-主要分类: cs.LG
-所有分类: cs.LG, cs.AI, cs.CR, cs.SE
-PDF链接: https://arxiv.org/pdf/2601.22136v1
-备注: 16 pages, 2 figures, 14 tables
-摘要: Existing agent safety benchmarks report binary accuracy, conflating early intervention with post-mortem analysis. A detector that flags a violation at step 8 enables intervention; one that reports it ...
-相关链接:
-  - https://arxiv.org/abs/2601.22136v1
-  - https://arxiv.org/pdf/2601.22136v1
-
-================================================================================
-
-论文 8: Pay for Hints, Not Answers: LLM Shepherding for Cost-Efficient Inference
-------------------------------------------------------------
-ID: 2601.22132v1
-作者: Ziming Dong, Hardik Sharma, Evan O'Toole, Jaya Prakash Champati, Kui Wu
-发表时间: 2026-01-29 18:52:54
-更新时间: 2026-01-29 18:52:54
+ID: 2602.09008v1
+作者: Sijia Peng, Yun Xiong, Xi Chen, Yi Xie, Guanzhi Li, Yanwei Yu, Yangyong Zhu, Zhiqiang Shen
+发表时间: 2026-02-09 18:53:08
+更新时间: 2026-02-09 18:53:08
 主要分类: cs.LG
 所有分类: cs.LG
-PDF链接: https://arxiv.org/pdf/2601.22132v1
-摘要: Large Language Models (LLMs) deliver state-of-the-art performance on complex reasoning tasks, but their inference costs limit deployment at scale. Small Language Models (SLMs) offer dramatic cost savi...
+PDF链接: https://arxiv.org/pdf/2602.09008v1
+备注: Code at: https://github.com/lunaaa95/ShapeCond
+摘要: Time series data supports many domains (e.g., finance and climate science), but its rapid growth strains storage and computation. Dataset condensation can alleviate this by synthesizing a compact trai...
 相关链接:
-  - https://arxiv.org/abs/2601.22132v1
-  - https://arxiv.org/pdf/2601.22132v1
+  - https://arxiv.org/abs/2602.09008v1
+  - https://arxiv.org/pdf/2602.09008v1
 
 ================================================================================
 
-论文 9: SMOG: Scalable Meta-Learning for Multi-Objective Bayesian Optimization
+论文 6: ARO: A New Lens On Matrix Optimization For Large Models
 ------------------------------------------------------------
-ID: 2601.22131v1
-作者: Leonard Papenmeier, Petru Tighineanu
-发表时间: 2026-01-29 18:51:58
-更新时间: 2026-01-29 18:51:58
+ID: 2602.09006v1
+作者: Wenbo Gong, Javier Zazo, Qijun Luo, Puqian Wang, James Hensman, Chao Ma
+发表时间: 2026-02-09 18:51:22
+更新时间: 2026-02-09 18:51:22
+主要分类: cs.LG
+所有分类: cs.LG, cs.AI, math.OC
+PDF链接: https://arxiv.org/pdf/2602.09006v1
+摘要: Matrix-based optimizers have attracted growing interest for improving LLM training efficiency, with significant progress centered on orthogonalization/whitening based methods. While yielding substanti...
+相关链接:
+  - https://arxiv.org/abs/2602.09006v1
+  - https://arxiv.org/pdf/2602.09006v1
+
+================================================================================
+
+论文 7: DirMoE: Dirichlet-routed Mixture of Experts
+------------------------------------------------------------
+ID: 2602.09001v1
+作者: Amirhossein Vahidi, Hesam Asadollahzadeh, Navid Akhavan Attar, Marie Moullet, Kevin Ly, Xingyi Yang, Mohammad Lotfollahi
+发表时间: 2026-02-09 18:45:43
+更新时间: 2026-02-09 18:45:43
 主要分类: cs.LG
 所有分类: cs.LG
-PDF链接: https://arxiv.org/pdf/2601.22131v1
-备注: 19 pages, 15 figures
-摘要: Multi-objective optimization aims to solve problems with competing objectives, often with only black-box access to a problem and a limited budget of measurements. In many applications, historical data...
+PDF链接: https://arxiv.org/pdf/2602.09001v1
+摘要: Mixture-of-Experts (MoE) models have demonstrated exceptional performance in large-scale language models. Existing routers typically rely on non-differentiable Top-$k$+Softmax, limiting their performa...
 相关链接:
-  - https://arxiv.org/abs/2601.22131v1
-  - https://arxiv.org/pdf/2601.22131v1
+  - https://arxiv.org/abs/2602.09001v1
+  - https://arxiv.org/pdf/2602.09001v1
 
 ================================================================================
 
-论文 10: SWE-Replay: Efficient Test-Time Scaling for Software Engineering Agents
+论文 8: Universal Coefficients and Mayer-Vietoris Sequence for Groupoid Homology
 ------------------------------------------------------------
-ID: 2601.22129v1
-作者: Yifeng Ding, Lingming Zhang
-发表时间: 2026-01-29 18:50:29
-更新时间: 2026-01-29 18:50:29
-主要分类: cs.SE
-所有分类: cs.SE, cs.AI, cs.LG
-PDF链接: https://arxiv.org/pdf/2601.22129v1
-摘要: Test-time scaling has been widely adopted to enhance the capabilities of Large Language Model (LLM) agents in software engineering (SWE) tasks. However, the standard approach of repeatedly sampling tr...
+ID: 2602.08998v1
+作者: Luciano Melodia
+发表时间: 2026-02-09 18:43:31
+更新时间: 2026-02-09 18:43:31
+主要分类: math.AT
+所有分类: math.AT, cs.LG, math.OA, stat.ML
+PDF链接: https://arxiv.org/pdf/2602.08998v1
+备注: Master's thesis
+摘要: We study homology of ample groupoids via the compactly supported Moore complex of the nerve. Let $A$ be a topological abelian group. For $n\ge 0$ set $C_n(\mathcal G;A) := C_c(\mathcal G_n,A)$ and def...
 相关链接:
-  - https://arxiv.org/abs/2601.22129v1
-  - https://arxiv.org/pdf/2601.22129v1
+  - https://arxiv.org/abs/2602.08998v1
+  - https://arxiv.org/pdf/2602.08998v1
 
 ================================================================================
 
-论文 11: EditYourself: Audio-Driven Generation and Manipulation of Talking Head Videos with Diffusion Transformers
+论文 9: Improving Detection of Rare Nodes in Hierarchical Multi-Label Learning
 ------------------------------------------------------------
-ID: 2601.22127v1
-作者: John Flynn, Wolfgang Paier, Dimitar Dinev, Sam Nhut Nguyen, Hayk Poghosyan, Manuel Toribio, Sandipan Banerjee, Guy Gafni
-发表时间: 2026-01-29 18:49:27
-更新时间: 2026-01-29 18:49:27
+ID: 2602.08986v1
+作者: Isaac Xu, Martin Gillis, Ayushi Sharma, Benjamin Misiuk, Craig J. Brown, Thomas Trappenberg
+发表时间: 2026-02-09 18:34:17
+更新时间: 2026-02-09 18:34:17
+主要分类: cs.LG
+所有分类: cs.LG, cs.AI
+PDF链接: https://arxiv.org/pdf/2602.08986v1
+备注: Accepted for publication in Transactions on Machine Learning Research (TMLR), 2026
+摘要: In hierarchical multi-label classification, a persistent challenge is enabling model predictions to reach deeper levels of the hierarchy for more detailed or fine-grained classifications. This difficu...
+相关链接:
+  - https://arxiv.org/abs/2602.08986v1
+  - https://arxiv.org/pdf/2602.08986v1
+
+================================================================================
+
+论文 10: StretchTime: Adaptive Time Series Forecasting via Symplectic Attention
+------------------------------------------------------------
+ID: 2602.08983v1
+作者: Yubin Kim, Viresh Pati, Jevon Twitty, Vinh Pham, Shihao Yang, Jiecheng Lu
+发表时间: 2026-02-09 18:29:25
+更新时间: 2026-02-09 18:29:25
+主要分类: cs.LG
+所有分类: cs.LG, cs.AI
+PDF链接: https://arxiv.org/pdf/2602.08983v1
+摘要: Transformer architectures have established strong baselines in time series forecasting, yet they typically rely on positional encodings that assume uniform, index-based temporal progression. However, ...
+相关链接:
+  - https://arxiv.org/abs/2602.08983v1
+  - https://arxiv.org/pdf/2602.08983v1
+
+================================================================================
+
+论文 11: When do neural ordinary differential equations generalize on complex networks?
+------------------------------------------------------------
+ID: 2602.08980v1
+作者: Moritz Laber, Tina Eliassi-Rad, Brennan Klein
+发表时间: 2026-02-09 18:28:41
+更新时间: 2026-02-09 18:28:41
+主要分类: physics.soc-ph
+所有分类: physics.soc-ph, cs.LG, cs.SI, stat.ML
+PDF链接: https://arxiv.org/pdf/2602.08980v1
+摘要: Neural ordinary differential equations (neural ODEs) can effectively learn dynamical systems from time series data, but their behavior on graph-structured data remains poorly understood, especially wh...
+相关链接:
+  - https://arxiv.org/abs/2602.08980v1
+  - https://arxiv.org/pdf/2602.08980v1
+
+================================================================================
+
+论文 12: Distributionally Robust Optimization via Generative Ambiguity Modeling
+------------------------------------------------------------
+ID: 2602.08976v1
+作者: Jiaqi Wen, Jianyi Yang
+发表时间: 2026-02-09 18:20:29
+更新时间: 2026-02-09 18:20:29
+主要分类: cs.LG
+所有分类: cs.LG
+PDF链接: https://arxiv.org/pdf/2602.08976v1
+摘要: This paper studies Distributionally Robust Optimization (DRO), a fundamental framework for enhancing the robustness and generalization of statistical learning and optimization. An effective ambiguity ...
+相关链接:
+  - https://arxiv.org/abs/2602.08976v1
+  - https://arxiv.org/pdf/2602.08976v1
+
+================================================================================
+
+论文 13: Learning to Coordinate via Quantum Entanglement in Multi-Agent Reinforcement Learning
+------------------------------------------------------------
+ID: 2602.08965v1
+作者: John Gardiner, Orlando Romero, Brendan Tivnan, Nicolò Dal Fabbro, George J. Pappas
+发表时间: 2026-02-09 18:01:40
+更新时间: 2026-02-09 18:01:40
+主要分类: cs.MA
+所有分类: cs.MA, cs.LG
+PDF链接: https://arxiv.org/pdf/2602.08965v1
+摘要: The inability to communicate poses a major challenge to coordination in multi-agent reinforcement learning (MARL). Prior work has explored correlating local policies via shared randomness, sometimes i...
+相关链接:
+  - https://arxiv.org/abs/2602.08965v1
+  - https://arxiv.org/pdf/2602.08965v1
+
+================================================================================
+
+论文 14: A Behavioural and Representational Evaluation of Goal-Directedness in Language Model Agents
+------------------------------------------------------------
+ID: 2602.08964v1
+作者: Raghu Arghal, Fade Chen, Niall Dalton, Evgenii Kortukov, Calum McNamara, Angelos Nalmpantis, Moksh Nirvaan, Gabriele Sarti, Mario Giulianelli
+发表时间: 2026-02-09 18:00:28
+更新时间: 2026-02-09 18:00:28
+主要分类: cs.LG
+所有分类: cs.LG, cs.AI, cs.CL, cs.CY
+PDF链接: https://arxiv.org/pdf/2602.08964v1
+摘要: Understanding an agent's goals helps explain and predict its behaviour, yet there is no established methodology for reliably attributing goals to agentic systems. We propose a framework for evaluating...
+相关链接:
+  - https://arxiv.org/abs/2602.08964v1
+  - https://arxiv.org/pdf/2602.08964v1
+
+================================================================================
+
+论文 15: MotionCrafter: Dense Geometry and Motion Reconstruction with a 4D VAE
+------------------------------------------------------------
+ID: 2602.08961v1
+作者: Ruijie Zhu, Jiahao Lu, Wenbo Hu, Xiaoguang Han, Jianfei Cai, Ying Shan, Chuanxia Zheng
+发表时间: 2026-02-09 17:58:12
+更新时间: 2026-02-09 17:58:12
 主要分类: cs.CV
-所有分类: cs.CV, cs.GR, cs.LG, cs.MM
-PDF链接: https://arxiv.org/pdf/2601.22127v1
-备注: Project page: https://edit-yourself.github.io/
-摘要: Current generative video models excel at producing novel content from text and image prompts, but leave a critical gap in editing existing pre-recorded videos, where minor alterations to the spoken sc...
+所有分类: cs.CV, cs.AI, cs.CG, cs.LG
+PDF链接: https://arxiv.org/pdf/2602.08961v1
+备注: Project page: https://ruijiezhu94.github.io/MotionCrafter_Page
+摘要: We introduce MotionCrafter, a video diffusion-based framework that jointly reconstructs 4D geometry and estimates dense motion from a monocular video. The core of our method is a novel joint represent...
 相关链接:
-  - https://arxiv.org/abs/2601.22127v1
-  - https://arxiv.org/pdf/2601.22127v1
-
-================================================================================
-
-论文 12: Learning Hamiltonian Flow Maps: Mean Flow Consistency for Large-Timestep Molecular Dynamics
-------------------------------------------------------------
-ID: 2601.22123v1
-作者: Winfried Ripken, Michael Plainer, Gregor Lied, Thorben Frank, Oliver T. Unke, Stefan Chmiela, Frank Noé, Klaus Robert Müller
-发表时间: 2026-01-29 18:47:46
-更新时间: 2026-01-29 18:47:46
-主要分类: cs.LG
-所有分类: cs.LG
-PDF链接: https://arxiv.org/pdf/2601.22123v1
-摘要: Simulating the long-time evolution of Hamiltonian systems is limited by the small timesteps required for stable numerical integration. To overcome this constraint, we introduce a framework to learn Ha...
-相关链接:
-  - https://arxiv.org/abs/2601.22123v1
-  - https://arxiv.org/pdf/2601.22123v1
-
-================================================================================
-
-论文 13: Alpha Discovery via Grammar-Guided Learning and Search
-------------------------------------------------------------
-ID: 2601.22119v1
-作者: Han Yang, Dong Hao, Zhuohan Wang, Qi Shi, Xingtong Li
-发表时间: 2026-01-29 18:46:15
-更新时间: 2026-01-29 18:46:15
-主要分类: q-fin.CP
-所有分类: q-fin.CP, cs.AI, cs.LG
-PDF链接: https://arxiv.org/pdf/2601.22119v1
-备注: 24 pages, 10 figures
-摘要: Automatically discovering formulaic alpha factors is a central problem in quantitative finance. Existing methods often ignore syntactic and semantic constraints, relying on exhaustive search over unst...
-相关链接:
-  - https://arxiv.org/abs/2601.22119v1
-  - https://arxiv.org/pdf/2601.22119v1
-
-================================================================================
-
-论文 14: Diverse Approaches to Optimal Execution Schedule Generation
-------------------------------------------------------------
-ID: 2601.22113v1
-作者: Robert de Witt, Mikko S. Pakkanen
-发表时间: 2026-01-29 18:41:52
-更新时间: 2026-01-29 18:41:52
-主要分类: q-fin.TR
-所有分类: q-fin.TR, cs.LG
-PDF链接: https://arxiv.org/pdf/2601.22113v1
-备注: 27 pages, 15 figures, 5 tables
-摘要: We present the first application of MAP-Elites, a quality-diversity algorithm, to trade execution. Rather than searching for a single optimal policy, MAP-Elites generates a diverse portfolio of regime...
-相关链接:
-  - https://arxiv.org/abs/2601.22113v1
-  - https://arxiv.org/pdf/2601.22113v1
-
-================================================================================
-
-论文 15: Physics Informed Reconstruction of Four-Dimensional Atmospheric Wind Fields Using Multi-UAS Swarm Observations in a Synthetic Turbulent Environment
-------------------------------------------------------------
-ID: 2601.22111v1
-作者: Abdullah Tasim, Wei Sun
-发表时间: 2026-01-29 18:40:32
-更新时间: 2026-01-29 18:40:32
-主要分类: cs.LG
-所有分类: cs.LG, eess.SY, physics.ao-ph
-PDF链接: https://arxiv.org/pdf/2601.22111v1
-摘要: Accurate reconstruction of atmospheric wind fields is essential for applications such as weather forecasting, hazard prediction, and wind energy assessment, yet conventional instruments leave spatio-t...
-相关链接:
-  - https://arxiv.org/abs/2601.22111v1
-  - https://arxiv.org/pdf/2601.22111v1
+  - https://arxiv.org/abs/2602.08961v1
+  - https://arxiv.org/pdf/2602.08961v1
 
 ================================================================================
 

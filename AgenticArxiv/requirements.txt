@@ -2,3 +2,6 @@ arxiv
 requests
 python-dotenv
 loguru
+pydantic
+fastapi
+uvicorn[standard]

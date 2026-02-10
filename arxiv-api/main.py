@@ -1,4 +1,4 @@
-import arxiv
+import arxiv # type: ignore
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict
 
