@@ -10,8 +10,10 @@ python collect_code.py -o context.txt
 python collect_code.py -i .gitignore
 列出默认规则：
 python collect_code.py --list-defaults
-常用:
+# 后端
 python collect_code.py ./AgenticArxiv -i .gitignore -o collected_code.txt
+# 前端
+python collect_code.py ./AgenticArxivWeb -i .gitignore -o collected_code_web.txt
 """
 
 import os

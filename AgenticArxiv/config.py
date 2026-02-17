@@ -15,7 +15,9 @@ DEFAULT_OUTPUT_DIR = os.path.join(PROJECT_ROOT, "output")
 
 @dataclass(frozen=True)
 class LLMModels:
-    agent_model: str = "gemini-3-pro-preview"
+    agent_model: str = os.getenv(
+        "MODEL", "gemini-3-pro-preview"
+    )
     translate_model: str = "tab_flash_lite_preview"
 
 
