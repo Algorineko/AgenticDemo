@@ -3,7 +3,7 @@
     <header class="card-header">
       <div class="title">下载/翻译缓存</div>
       <p class="muted">
-        PDF：{{ pdfList.length }} 条 · 翻译：{{ trList.length }} 条（均为 READY）
+        PDF: {{ pdfList.length }} 条 · 翻译: {{ trList.length }} 条
       </p>
     </header>
 

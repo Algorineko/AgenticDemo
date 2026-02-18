@@ -128,7 +128,7 @@
     </div>
 
     <div class="empty" v-else>
-      暂无论文。你可以在对话区发送：<code>获取最近7天内AI(cs.AI)方向论文，最多5篇</code>
+      暂无论文
     </div>
   </section>
 </template>
