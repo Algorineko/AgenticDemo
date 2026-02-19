@@ -1,0 +1,5 @@
+# AgenticArxiv
+启动脚本
+```sh
+./bin/start.sh --logs
+```
