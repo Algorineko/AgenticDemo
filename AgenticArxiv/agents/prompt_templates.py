@@ -7,12 +7,18 @@ REACT_PROMPT_TEMPLATE = """你是一个AI研究助手,可以获取最新的arXiv
 当前任务：{task}
 请按照ReAct框架的格式思考和行动:
 Thought: 分析当前情况和下一步需要做什么
-Action: {{"name": "工具名称", "args": {{参数对象}}}}
+Action: {{"name":"工具名称","args":{{参数对象}}}}
 Observation: 工具执行的结果
 当你认为任务已经完成时，使用以下格式结束：
 Thought: 任务已完成
 Action: FINISH
 注意：只能使用上面列出的工具。每次只能执行一个动作。
+强约束：
+- Action 后必须是“严格 JSON”(双引号、true/false/null, 小写)
+- 禁止 Python 风格 True/False/None
+- 禁止尾随逗号、注释、以及任何额外文本
+正确示例：
+Action: {{"name":"translate_arxiv_pdf","args":{{"ref":2,"session_id":"demo1","force":false,"service":"bing","threads":4,"keep_dual":false}}}}
 现在开始执行任务：
 {history}
 """

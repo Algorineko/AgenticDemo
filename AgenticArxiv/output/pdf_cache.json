@@ -1,71 +1,27 @@
 {
   "version": 1,
-  "updated_at": "2026-02-19T00:19:10.190081",
+  "updated_at": "2026-02-20T02:19:49.679791",
   "assets": {
-    "2602.09017v1": {
-      "paper_id": "2602.09017v1",
-      "pdf_url": "https://arxiv.org/pdf/2602.09017v1.pdf",
-      "local_path": "/home/dev/AgenticDemo/AgenticArxiv/output/pdf_raw/2602.09017v1.pdf",
+    "2602.16518v1": {
+      "paper_id": "2602.16518v1",
+      "pdf_url": "https://arxiv.org/pdf/2602.16518v1.pdf",
+      "local_path": "/home/dev/AgenticDemo/AgenticArxiv/output/pdf_raw/2602.16518v1.pdf",
       "status": "READY",
-      "size_bytes": 7907170,
-      "sha256": "b0428cf26ad882127851059de2fafebb3ae164e38f631b9d941ca8ac0ebbeda4",
-      "downloaded_at": "2026-02-11T02:31:05.178532",
-      "updated_at": "2026-02-11T02:31:05.178596",
+      "size_bytes": 1090045,
+      "sha256": "7f12f324cf574e9fefafe5350b1fff628ad57b166785c4326ac3f1da8566cd74",
+      "downloaded_at": "2026-02-20T02:18:06.535744",
+      "updated_at": "2026-02-20T02:18:06.535807",
       "error": null
     },
-    "2602.11144v1": {
-      "paper_id": "2602.11144v1",
-      "pdf_url": "https://arxiv.org/pdf/2602.11144v1.pdf",
-      "local_path": "/home/dev/AgenticDemo/AgenticArxiv/output/pdf_raw/2602.11144v1.pdf",
+    "2602.16306v1": {
+      "paper_id": "2602.16306v1",
+      "pdf_url": "https://arxiv.org/pdf/2602.16306v1.pdf",
+      "local_path": "/home/dev/AgenticDemo/AgenticArxiv/output/pdf_raw/2602.16306v1.pdf",
       "status": "READY",
-      "size_bytes": 6287518,
-      "sha256": "8a502969ac9e2ea7c9fc28cbfbf5087b603075b30df494a027fe06e04fed3b2a",
-      "downloaded_at": "2026-02-12T23:22:23.883081",
-      "updated_at": "2026-02-12T23:22:23.883146",
-      "error": null
-    },
-    "2602.12279v1": {
-      "paper_id": "2602.12279v1",
-      "pdf_url": "https://arxiv.org/pdf/2602.12279v1.pdf",
-      "local_path": "/home/dev/AgenticDemo/AgenticArxiv/output/pdf_raw/2602.12279v1.pdf",
-      "status": "READY",
-      "size_bytes": 7897249,
-      "sha256": "e305ad0b339c5e94348d4934dc246f1b73872e250780426b7a512c29f22ee55e",
-      "downloaded_at": "2026-02-13T19:58:24.069114",
-      "updated_at": "2026-02-13T19:58:24.069186",
-      "error": null
-    },
-    "2602.15031v1": {
-      "paper_id": "2602.15031v1",
-      "pdf_url": "https://arxiv.org/pdf/2602.15031v1.pdf",
-      "local_path": "/home/dev/AgenticDemo/AgenticArxiv/output/pdf_raw/2602.15031v1.pdf",
-      "status": "READY",
-      "size_bytes": 15489813,
-      "sha256": "d12cc416f7e68133de92f4778f8509d9b735fc1e47e4c4d58ea7cf7ce700ecac",
-      "downloaded_at": "2026-02-17T23:47:08.847909",
-      "updated_at": "2026-02-17T23:47:08.847974",
-      "error": null
-    },
-    "2602.15830v1": {
-      "paper_id": "2602.15830v1",
-      "pdf_url": "https://arxiv.org/pdf/2602.15830v1.pdf",
-      "local_path": "/home/dev/AgenticDemo/AgenticArxiv/output/pdf_raw/2602.15830v1.pdf",
-      "status": "READY",
-      "size_bytes": 2968018,
-      "sha256": "6f5a4f95f8ffb404c583300b6476d5ea1250c8c8ac472b7586e1b09bdd52dbb5",
-      "downloaded_at": "2026-02-18T23:52:47.334746",
-      "updated_at": "2026-02-18T23:52:47.334810",
-      "error": null
-    },
-    "2602.15827v1": {
-      "paper_id": "2602.15827v1",
-      "pdf_url": "https://arxiv.org/pdf/2602.15827v1.pdf",
-      "local_path": "/home/dev/AgenticDemo/AgenticArxiv/output/pdf_raw/2602.15827v1.pdf",
-      "status": "READY",
-      "size_bytes": 3571801,
-      "sha256": "14e324ef450a5592b24b25d80b196e16a49f313d8ddfa908e248776eaf049d3a",
-      "downloaded_at": "2026-02-19T00:19:10.190046",
-      "updated_at": "2026-02-19T00:19:10.190078",
+      "size_bytes": 430142,
+      "sha256": "0b9be936e3ef0a646b0b219dfd26ee3be68db30ab64356c325b7a14888fd4562",
+      "downloaded_at": "2026-02-20T02:19:49.679760",
+      "updated_at": "2026-02-20T02:19:49.679788",
       "error": null
     }
   }

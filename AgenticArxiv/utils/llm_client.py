@@ -23,7 +23,7 @@ class LLMClient:
         self,
         model: str,
         messages: List[Dict[str, str]],
-        temperature: float = 0.7,
+        temperature: float = 0.3,
         max_tokens: int = 1000,
         stream: bool = False,
         extra: Optional[Dict[str, Any]] = None,

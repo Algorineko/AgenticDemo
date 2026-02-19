@@ -1,5 +1,7 @@
 # AgenticArxiv
-启动脚本
+启动脚本(前后端)
 ```sh
 ./bin/start.sh --logs
 ```
+### TODO:
+- 翻译工具需制作为异步，当前会timeout

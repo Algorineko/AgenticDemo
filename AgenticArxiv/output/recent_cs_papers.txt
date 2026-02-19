@@ -1,22 +1,88 @@
 ================================================================================
 ArXiv 计算机科学论文列表
-生成时间: 2026-02-19 00:19:03
-论文数量: 1
+生成时间: 2026-02-20 02:15:36
+论文数量: 5
 ================================================================================
 
-论文 1: Perceptive Humanoid Parkour: Chaining Dynamic Human Skills via Motion Matching
+论文 1: Improved Bounds for Discrete Voronoi Games
 ------------------------------------------------------------
-ID: 2602.15827v1
-作者: Zhen Wu, Xiaoyu Huang, Lujie Yang, Yuanhang Zhang, Koushil Sreenath, Xi Chen, Pieter Abbeel, Rocky Duan, Angjoo Kanazawa, Carmelo Sferrazza, Guanya Shi, C. Karen Liu
-发表时间: 2026-02-17 18:59:11
-更新时间: 2026-02-17 18:59:11
-主要分类: cs.RO
-所有分类: cs.RO, cs.AI, cs.LG, eess.SY
-PDF链接: https://arxiv.org/pdf/2602.15827v1
-摘要: While recent advances in humanoid locomotion have achieved stable walking on varied terrains, capturing the agility and adaptivity of highly dynamic human motions remains an open challenge. In particu...
+ID: 2602.16518v1
+作者: Mark de Berg, Geert van Wordragen
+发表时间: 2026-02-18 15:05:12
+更新时间: 2026-02-18 15:05:12
+主要分类: cs.CG
+所有分类: cs.CG
+PDF链接: https://arxiv.org/pdf/2602.16518v1
+摘要: In the planar one-round discrete Voronoi game, two players $\mathcal{P}$ and $\mathcal{Q}$ compete over a set $V$ of $n$ voters represented by points in $\mathbb{R}^2$. First, $\mathcal{P}$ places a s...
 相关链接:
-  - https://arxiv.org/abs/2602.15827v1
-  - https://arxiv.org/pdf/2602.15827v1
+  - https://arxiv.org/abs/2602.16518v1
+  - https://arxiv.org/pdf/2602.16518v1
+
+================================================================================
+
+论文 2: Dynamic and Streaming Algorithms for Union Volume Estimation
+------------------------------------------------------------
+ID: 2602.16306v1
+作者: Sujoy Bhore, Karl Bringmann, Timothy M. Chan, Yanheng Wang
+发表时间: 2026-02-18 09:37:20
+更新时间: 2026-02-18 09:37:20
+主要分类: cs.CG
+所有分类: cs.CG, cs.DS
+PDF链接: https://arxiv.org/pdf/2602.16306v1
+备注: 27 pages; accepted at SoCG 2026
+摘要: The union volume estimation problem asks to $(1\pm\varepsilon)$-approximate the volume of the union of $n$ given objects $X_1,\ldots,X_n \subset \mathbb{R}^d$. In their seminal work in 1989, Karp, Lub...
+相关链接:
+  - https://arxiv.org/abs/2602.16306v1
+  - https://arxiv.org/pdf/2602.16306v1
+
+================================================================================
+
+论文 3: Ratio Covers of Convex Sets and Optimal Mixture Density Estimation
+------------------------------------------------------------
+ID: 2602.16142v1
+作者: Spencer Compton, Gábor Lugosi, Jaouad Mourtada, Jian Qian, Nikita Zhivotovskiy
+发表时间: 2026-02-18 02:25:18
+更新时间: 2026-02-18 02:25:18
+主要分类: math.ST
+所有分类: math.ST, cs.CG, cs.LG
+PDF链接: https://arxiv.org/pdf/2602.16142v1
+备注: 45 pages
+摘要: We study density estimation in Kullback-Leibler divergence: given an i.i.d. sample from an unknown density $p$, the goal is to construct an estimator $\widehat p$ such that $\mathrm{KL}(p,\widehat p)$...
+相关链接:
+  - https://arxiv.org/abs/2602.16142v1
+  - https://arxiv.org/pdf/2602.16142v1
+
+================================================================================
+
+论文 4: Morphing of and writing with a scissor linkage mechanism
+------------------------------------------------------------
+ID: 2602.14958v1
+作者: Mohanraj A, S Ganga Prasath
+发表时间: 2026-02-16 17:37:43
+更新时间: 2026-02-16 17:37:43
+主要分类: cs.RO
+所有分类: cs.RO, cs.CG
+PDF链接: https://arxiv.org/pdf/2602.14958v1
+摘要: Kinematics of mechanisms is intricately coupled to their geometry and their utility often arises out of the ability to perform reproducible motion with fewer actuating degrees of freedom. In this arti...
+相关链接:
+  - https://arxiv.org/abs/2602.14958v1
+  - https://arxiv.org/pdf/2602.14958v1
+
+================================================================================
+
+论文 5: Lower Estimates for $L_1$-Distortion of Transportation Cost Spaces
+------------------------------------------------------------
+ID: 2602.14852v1
+作者: Chris Gartland, Mikhail Ostrovskii
+发表时间: 2026-02-16 15:49:06
+更新时间: 2026-02-16 15:49:06
+主要分类: math.FA
+所有分类: math.FA, cs.CG, math.CO, math.MG
+PDF链接: https://arxiv.org/pdf/2602.14852v1
+摘要: Quantifying the degree of dissimilarity between two probability distributions on a finite metric space is a fundamental task in Computer Science and Computer Vision. A natural dissimilarity measure ba...
+相关链接:
+  - https://arxiv.org/abs/2602.14852v1
+  - https://arxiv.org/pdf/2602.14852v1
 
 ================================================================================
 

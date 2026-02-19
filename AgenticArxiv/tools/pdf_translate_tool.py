@@ -107,7 +107,7 @@ def _ensure_pdf_downloaded_by_id(
 
 def translate_arxiv_pdf(
     session_id: str = "default",
-    ref: Union[str, int] = 1,
+    ref: Union[str, int, None] = None,
     force: bool = False,
     service: str = None,
     threads: int = None,
@@ -118,13 +118,14 @@ def translate_arxiv_pdf(
     input_pdf_path: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
-    翻译 PDF（全文），输出到 settings.pdf_translated_path
-    默认只保留 mono（中文单语），dual 会被删除（除非 keep_dual=True）
+    翻译 PDF(全文)，输出到 settings.pdf_translated_path
+    默认只保留 mono(中文单语), dual 会被删除(除非 keep_dual=True)
     并维护 translate_cache.json
     """
     service = service or settings.pdf2zh_service
     threads = int(threads or settings.pdf2zh_threads)
-
+    if ref is None and not paper_id and not input_pdf_path:
+        raise ValueError("translate_arxiv_pdf 必须提供 ref 或 paper_id 或 input_pdf_path")
     # 1) 确定 paper_id / pdf_url / input_pdf_path
     if input_pdf_path and os.path.exists(input_pdf_path):
         in_path = input_pdf_path
