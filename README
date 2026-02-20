@@ -4,4 +4,4 @@
 ./bin/start.sh --logs
 ```
 ### TODO:
-- 翻译工具需制作为异步，当前会timeout
+- 翻译工具需制作为异步，当前SSE会在翻译过程中ERROR待修复
