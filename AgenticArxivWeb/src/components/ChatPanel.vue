@@ -52,38 +52,84 @@
         placeholder="输入一句话，让 agent 自己决定调用工具…"
         @keydown.enter.exact.prevent="send"
       />
+
       <div class="actions">
-        <button class="btn primary" @click="send" :disabled="store.loading || !draft.trim()">
+        <button
+          v-if="store.lastHistory.length"
+          class="btn ghost"
+          type="button"
+          @click="showDebug = true"
+          :title="'查看最近一次 ReAct history（' + store.lastHistory.length + '步）'"
+        >
+          调试（{{ store.lastHistory.length }}步）
+        </button>
+
+        <button class="btn" type="button" @click="quick('获取最近7天内AI(cs.AI)方向论文，最多5篇')">
+          快捷: 拉取AI 5篇
+        </button>
+
+        <button class="btn primary" type="button" @click="send" :disabled="store.loading || !draft.trim()">
           {{ store.loading ? "发送中…" : "发送" }}
         </button>
-        <button class="btn" @click="quick('获取最近7天内AI(cs.AI)方向论文，最多5篇')">
-          快捷：拉取AI 5篇
-        </button>
       </div>
+    </footer>
 
-      <details class="debug" v-if="store.lastHistory.length">
-        <summary>调试：最近一次 ReAct history（{{ store.lastHistory.length }}步）</summary>
+    <!-- ✅ 弹出框展示调试详情 -->
+    <Modal
+      :open="showDebug"
+      title="调试：最近一次 ReAct history"
+      @close="showDebug = false"
+    >
+      <div class="debug-modal">
+        <div class="debug-top">
+          <div class="muted">
+            共 {{ store.lastHistory.length }} 步（Thought / Action / Observation）
+          </div>
+        </div>
+
         <div class="history">
           <div v-for="(h, i) in store.lastHistory" :key="i" class="step">
             <div class="h-title">Step {{ i + 1 }}</div>
-            <pre>Thought: {{ h.thought }}</pre>
-            <pre>Action: {{ h.action }}</pre>
-            <pre>Observation: {{ h.observation }}</pre>
+
+            <div class="kv">
+              <div class="k">Thought</div>
+              <pre class="v">{{ h.thought }}</pre>
+            </div>
+
+            <div class="kv">
+              <div class="k">Action</div>
+              <pre class="v">{{ h.action }}</pre>
+            </div>
+
+            <div class="kv">
+              <div class="k">Observation</div>
+              <pre class="v">{{ h.observation }}</pre>
+            </div>
           </div>
         </div>
-      </details>
-    </footer>
+      </div>
+
+      <template #footer>
+        <div class="footer-actions">
+          <button class="btn" type="button" @click="copyAll">复制全部</button>
+          <button class="btn primary" type="button" @click="showDebug = false">关闭</button>
+        </div>
+      </template>
+    </Modal>
   </section>
 </template>
 
 <script setup lang="ts">
-import { nextTick, onMounted, ref, watch } from "vue";
+import { nextTick, onMounted, ref, watch, computed } from "vue";
 import { useAppStore } from "@/stores/appStore";
+import Modal from "@/components/Modal.vue";
 
 const store = useAppStore();
 const draft = ref("");
 const sessionDraft = ref(store.sessionId);
 const msgBox = ref<HTMLDivElement | null>(null);
+
+const showDebug = ref(false);
 
 function fmt(ts: number) {
   if (!ts) return "-";
@@ -123,6 +169,44 @@ watch(
     msgBox.value?.scrollTo({ top: msgBox.value.scrollHeight });
   }
 );
+
+const allHistoryText = computed(() => {
+  const arr = store.lastHistory || [];
+  return arr
+    .map((h, i) => {
+      return [
+        `Step ${i + 1}`,
+        `Thought: ${h.thought ?? ""}`,
+        `Action: ${h.action ?? ""}`,
+        `Observation: ${h.observation ?? ""}`,
+      ].join("\n");
+    })
+    .join("\n\n");
+});
+
+async function copyAll() {
+  const text = allHistoryText.value || "";
+  if (!text) return;
+
+  try {
+    await navigator.clipboard.writeText(text);
+    store.lastError = "";
+  } catch {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = text;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    } catch {
+      // ignore
+    }
+  }
+}
 </script>
 
 <style scoped>
@@ -141,7 +225,14 @@ watch(
 .content { white-space: pre-wrap; margin:0; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace; }
 .composer { border-top: 1px solid var(--border); padding-top: 10px; }
 .textarea { width:100%; min-height: 80px; padding: 10px; border:1px solid var(--border); border-radius: 12px; background: var(--bg2); color: var(--fg); resize: vertical; }
-.actions { display:flex; gap:10px; flex-wrap:wrap; margin-top: 10px; }
+.actions {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
 .error { color: #ff6b6b; margin: 6px 0 0; }
 .toggle { display:flex; gap:6px; align-items:center; }
 .muted { color: var(--muted); }
@@ -160,8 +251,73 @@ watch(
 .pill.connected { border-color: rgba(0,255,153,.35); }
 .pill.error { border-color: rgba(255,107,107,.35); }
 
-.debug { margin-top: 10px; color: var(--muted); }
-.history { padding: 8px 0; }
-.step { border:1px dashed var(--border); border-radius: 10px; padding: 8px; margin: 8px 0; background: var(--bg2); }
-.h-title { font-weight: 700; color: var(--fg); margin-bottom: 4px; }
+/* ---- Debug Modal content ---- */
+.debug-modal{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  color: var(--fg);
+}
+
+.debug-top{
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.history{
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step{
+  border: 1px solid rgba(255,255,255,0.08);
+  border-radius: 14px;
+  background: rgba(255,255,255,0.02);
+  padding: 10px;
+}
+
+.h-title{
+  font-weight: 750;
+  margin-bottom: 8px;
+  color: var(--fg);
+}
+
+.kv{
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 10px;
+  align-items: start;
+  margin-top: 8px;
+}
+
+.k{
+  color: var(--muted);
+  font-size: 12px;
+  padding-top: 2px;
+}
+
+/* 强制 ReAct 文本为白色（var(--fg)） */
+.v{
+  margin: 0;
+  white-space: pre-wrap;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.015);
+  border-radius: 12px;
+  padding: 8px;
+  overflow: auto;
+  color: var(--fg);
+}
+
+.footer-actions{
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 </style>
