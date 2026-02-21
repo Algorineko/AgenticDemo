@@ -7,6 +7,8 @@ import threading
 import uuid
 from typing import Dict, Tuple, Any
 
+from fastapi.encoders import jsonable_encoder
+
 
 class EventBus:
     """
@@ -42,11 +44,20 @@ class EventBus:
         event 会被 json dumps 后广播给该 session 的所有订阅者
         """
         sid = session_id or "default"
+
         try:
-            data = json.dumps(event, ensure_ascii=False)
-        except Exception:
-            # 兜底：保证不因序列化失败影响主流程
-            data = json.dumps({"type": "error", "message": "event serialization failed"}, ensure_ascii=False)
+            # 关键：把 datetime/BaseModel 等统统转成 JSON 友好结构
+            safe_event = jsonable_encoder(event)
+            data = json.dumps(safe_event, ensure_ascii=False)
+        except Exception as e:
+            # 注意：不要用 type="error"，避免前端把它当 SSE 故障
+            data = json.dumps(
+                {
+                    "type": "event_bus_error",
+                    "message": f"event serialization failed: {e}",
+                },
+                ensure_ascii=False,
+            )
 
         with self._lock:
             subs = list(self._subs.get(sid, {}).values())
@@ -55,5 +66,4 @@ class EventBus:
             try:
                 q.put_nowait(data)
             except Exception:
-                # 单个订阅异常不影响广播
                 pass
