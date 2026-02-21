@@ -18,11 +18,20 @@ F_PORT="${FRONTEND_PORT:-5173}"
 RUN_DIR="${ROOT_DIR}/.run"
 mkdir -p "${RUN_DIR}"
 
-# 可选：传 --logs 则把输出写到文件
 USE_LOGS=0
-if [[ "${1:-}" == "--logs" ]]; then
-  USE_LOGS=1
-fi
+# 兼容：默认后台；--logs 写日志；--no-logs 直出到 /dev/null；--reload/--no-reload 覆盖
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --logs) USE_LOGS=1; shift ;;
+    --no-logs) USE_LOGS=0; shift ;;
+    --reload) B_RELOAD=1; shift ;;
+    --no-reload) B_RELOAD=0; shift ;;
+    *)
+      echo "[all] Unknown arg: $1" >&2
+      exit 1
+      ;;
+  esac
+done
 
 require_cmd() {
   local c="$1"
@@ -37,83 +46,91 @@ require_cmd() {
 
 require_cmd uvicorn
 require_cmd npm
+require_cmd setsid
 
-BACKEND_PID=""
-FRONTEND_PID=""
+BACKEND_PGID_FILE="${RUN_DIR}/backend.pgid"
+FRONTEND_PGID_FILE="${RUN_DIR}/frontend.pgid"
 
-cleanup() {
-  echo
-  echo "[all] stopping..."
-  if [[ -n "${BACKEND_PID}" ]] && kill -0 "${BACKEND_PID}" >/dev/null 2>&1; then
-    kill "${BACKEND_PID}" >/dev/null 2>&1 || true
-  fi
-  if [[ -n "${FRONTEND_PID}" ]] && kill -0 "${FRONTEND_PID}" >/dev/null 2>&1; then
-    kill "${FRONTEND_PID}" >/dev/null 2>&1 || true
-  fi
-  echo "[all] stopped."
+is_running_pgid() {
+  local f="$1"
+  [[ -f "$f" ]] || return 1
+  local pgid
+  pgid="$(cat "$f" 2>/dev/null || true)"
+  [[ -n "$pgid" ]] || return 1
+  # 进程组存在：kill -0 -PGID
+  kill -0 "-${pgid}" >/dev/null 2>&1
 }
-trap cleanup INT TERM EXIT
+
+start_backend() {
+  if is_running_pgid "${BACKEND_PGID_FILE}"; then
+    echo "[all] backend already running (pgid=$(cat "${BACKEND_PGID_FILE}"))"
+    return 0
+  fi
+
+  local cmd
+  if [[ "${B_RELOAD}" == "1" ]]; then
+    cmd="exec uvicorn api.app:app --host '${B_HOST}' --port '${B_PORT}' --reload"
+  else
+    cmd="exec uvicorn api.app:app --host '${B_HOST}' --port '${B_PORT}'"
+  fi
+
+  if [[ "${USE_LOGS}" == "1" ]]; then
+    local log="${RUN_DIR}/backend.log"
+    : > "${log}"
+    (
+      cd "${BACKEND_DIR}"
+      # setsid：让后端成为独立“会话/进程组”，$! 即 PGID
+      setsid bash -lc "${cmd}" >> "${log}" 2>&1 < /dev/null &
+      echo $! > "${BACKEND_PGID_FILE}"
+    )
+    echo "[all] backend started (pgid=$(cat "${BACKEND_PGID_FILE}")), log: ${log}"
+  else
+    (
+      cd "${BACKEND_DIR}"
+      setsid bash -lc "${cmd}" > /dev/null 2>&1 < /dev/null &
+      echo $! > "${BACKEND_PGID_FILE}"
+    )
+    echo "[all] backend started (pgid=$(cat "${BACKEND_PGID_FILE}"))"
+  fi
+}
+
+start_frontend() {
+  if is_running_pgid "${FRONTEND_PGID_FILE}"; then
+    echo "[all] frontend already running (pgid=$(cat "${FRONTEND_PGID_FILE}"))"
+    return 0
+  fi
+
+  local cmd="exec npm run dev -- --host '${F_HOST}' --port '${F_PORT}'"
+
+  if [[ "${USE_LOGS}" == "1" ]]; then
+    local log="${RUN_DIR}/frontend.log"
+    : > "${log}"
+    (
+      cd "${FRONTEND_DIR}"
+      setsid bash -lc "${cmd}" >> "${log}" 2>&1 < /dev/null &
+      echo $! > "${FRONTEND_PGID_FILE}"
+    )
+    echo "[all] frontend started (pgid=$(cat "${FRONTEND_PGID_FILE}")), log: ${log}"
+  else
+    (
+      cd "${FRONTEND_DIR}"
+      setsid bash -lc "${cmd}" > /dev/null 2>&1 < /dev/null &
+      echo $! > "${FRONTEND_PGID_FILE}"
+    )
+    echo "[all] frontend started (pgid=$(cat "${FRONTEND_PGID_FILE}"))"
+  fi
+}
 
 echo "[all] repo: ${ROOT_DIR}"
 echo "[all] backend:  http://${B_HOST}:${B_PORT}   (reload=${B_RELOAD})"
 echo "[all] frontend: http://${F_HOST}:${F_PORT}"
+echo "[all] mode: background"
 echo
 
-# ====== 启动后端 ======
-if [[ "${USE_LOGS}" == "1" ]]; then
-  BACKEND_LOG="${RUN_DIR}/backend.log"
-  : > "${BACKEND_LOG}"
-  (
-    cd "${BACKEND_DIR}"
-    if [[ "${B_RELOAD}" == "1" ]]; then
-      uvicorn api.app:app --host "${B_HOST}" --port "${B_PORT}" --reload
-    else
-      uvicorn api.app:app --host "${B_HOST}" --port "${B_PORT}"
-    fi
-  ) >> "${BACKEND_LOG}" 2>&1 &
-  BACKEND_PID=$!
-  echo "[all] backend started (pid=${BACKEND_PID}), log: ${BACKEND_LOG}"
-else
-  (
-    cd "${BACKEND_DIR}"
-    if [[ "${B_RELOAD}" == "1" ]]; then
-      uvicorn api.app:app --host "${B_HOST}" --port "${B_PORT}" --reload
-    else
-      uvicorn api.app:app --host "${B_HOST}" --port "${B_PORT}"
-    fi
-  ) &
-  BACKEND_PID=$!
-  echo "[all] backend started (pid=${BACKEND_PID})"
-fi
-
-# ====== 启动前端 ======
-if [[ "${USE_LOGS}" == "1" ]]; then
-  FRONTEND_LOG="${RUN_DIR}/frontend.log"
-  : > "${FRONTEND_LOG}"
-  (
-    cd "${FRONTEND_DIR}"
-    npm run dev -- --host "${F_HOST}" --port "${F_PORT}"
-  ) >> "${FRONTEND_LOG}" 2>&1 &
-  FRONTEND_PID=$!
-  echo "[all] frontend started (pid=${FRONTEND_PID}), log: ${FRONTEND_LOG}"
-else
-  (
-    cd "${FRONTEND_DIR}"
-    npm run dev -- --host "${F_HOST}" --port "${F_PORT}"
-  ) &
-  FRONTEND_PID=$!
-  echo "[all] frontend started (pid=${FRONTEND_PID})"
-fi
-
-# 记录 PID，方便你手动 kill
-echo "${BACKEND_PID}" > "${RUN_DIR}/backend.pid"
-echo "${FRONTEND_PID}" > "${RUN_DIR}/frontend.pid"
+start_backend
+start_frontend
 
 echo
-echo "[all] running... (Ctrl+C to stop both)"
-echo "[all] pid files: ${RUN_DIR}/backend.pid , ${RUN_DIR}/frontend.pid"
-echo
-
-# 任何一个退出就触发 cleanup
-wait -n "${BACKEND_PID}" "${FRONTEND_PID}"
-exit 0
+echo "[all] done."
+echo "[all] pgid files: ${BACKEND_PGID_FILE} , ${FRONTEND_PGID_FILE}"
+echo "[all] shutdown:   ${SCRIPT_DIR}/shutdown.sh"
