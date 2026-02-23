@@ -24,7 +24,6 @@ function nowTs() {
   return Date.now();
 }
 
-// EventSource 不适合放进可序列化 state，放模块变量
 let _es: EventSource | null = null;
 let _reconnectTimer: number | null = null;
 let _reconnectBackoffMs = 1000;
@@ -50,15 +49,11 @@ export const useAppStore = defineStore("app", {
     pdfAssets: [] as PdfAsset[],
     translateAssets: [] as TranslateAsset[],
 
-    // 翻译任务列表（来自 /chat.tasks 或 SSE）
     tasks: [] as TranslateTask[],
-
     lastHistory: [] as ReactStep[],
 
-    // 论文列表按钮操作：true=走 /chat 让 agent 决定调用工具；false=直调 /pdf/* 工具接口
     preferAgent: true,
 
-    // SSE 状态（可用于 UI 展示/调试）
     sseStatus: "idle" as "idle" | "connecting" | "connected" | "error",
     sseLastEvent: "" as string,
     sseLastEventTs: 0 as number,
@@ -78,6 +73,40 @@ export const useAppStore = defineStore("app", {
   },
 
   actions: {
+    // -------- URL helpers --------
+    _joinApi(path: string) {
+      const b = (this.apiBase || "").replace(/\/+$/, "");
+      const p = path.startsWith("/") ? path : `/${path}`;
+      return `${b}${p}`;
+    },
+
+    getRawPdfViewUrl(paperId: string) {
+      const pid = encodeURIComponent((paperId || "").trim());
+      const sid = encodeURIComponent(this.sessionId || "default");
+      return this._joinApi(`/pdf/view/raw/${pid}?session_id=${sid}`);
+    },
+
+    getTranslatedPdfViewUrl(paperId: string, variant: "mono" | "dual" = "mono") {
+      const pid = encodeURIComponent((paperId || "").trim());
+      const sid = encodeURIComponent(this.sessionId || "default");
+      const v = encodeURIComponent(variant);
+      return this._joinApi(`/pdf/view/translated/${pid}?variant=${v}&session_id=${sid}`);
+    },
+
+    _openNewTab(url: string) {
+      if (typeof window === "undefined") return;
+      window.open(url, "_blank", "noopener,noreferrer");
+    },
+
+    openRawPdf(paperId: string) {
+      this._openNewTab(this.getRawPdfViewUrl(paperId));
+    },
+
+    openTranslatedPdf(paperId: string, variant: "mono" | "dual" = "mono") {
+      this._openNewTab(this.getTranslatedPdfViewUrl(paperId, variant));
+    },
+
+    // -------- original logic --------
     setSessionId(id: string) {
       const next = (id || "default").trim() || "default";
       if (next === this.sessionId) return;
@@ -85,7 +114,6 @@ export const useAppStore = defineStore("app", {
       this.sessionId = next;
       localStorage.setItem("session_id", this.sessionId);
 
-      // session 切换：清任务 + 重连 SSE（避免串消息）
       this.tasks = [];
       this.closeSse();
       this.ensureSse();
@@ -98,10 +126,8 @@ export const useAppStore = defineStore("app", {
       this.messages.push({ role: "assistant", content, ts: nowTs() });
     },
 
-    // ---------------- SSE ----------------
     ensureSse() {
       if (typeof window === "undefined") return;
-
       const sid = this.sessionId || "default";
       if (_es) return;
 
@@ -120,7 +146,7 @@ export const useAppStore = defineStore("app", {
           this.sseLastEvent = "error";
           this.sseLastEventTs = nowTs();
 
-          const readyState = _es?.readyState; // 0 CONNECTING, 1 OPEN, 2 CLOSED
+          const readyState = _es?.readyState;
           if (readyState === 2) {
             this.closeSse();
             this._scheduleReconnect();
@@ -135,9 +161,7 @@ export const useAppStore = defineStore("app", {
       if (_es) {
         try {
           _es.close();
-        } catch {
-          // ignore
-        }
+        } catch { }
       }
       _es = null;
       this.sseStatus = "idle";
@@ -162,11 +186,8 @@ export const useAppStore = defineStore("app", {
       if (!id) return;
 
       const idx = this.tasks.findIndex((x) => x.task_id === id);
-      if (idx >= 0) {
-        this.tasks[idx] = { ...this.tasks[idx], ...t };
-      } else {
-        this.tasks.unshift(t);
-      }
+      if (idx >= 0) this.tasks[idx] = { ...this.tasks[idx], ...t };
+      else this.tasks.unshift(t);
 
       if (this.tasks.length > 50) this.tasks.length = 50;
     },
@@ -189,7 +210,6 @@ export const useAppStore = defineStore("app", {
         return;
       }
 
-      // 删除事件：尽量本地移除，必要时再刷新一次
       if (evt.type === "asset_deleted" && evt.paper_id) {
         const kind = String(evt.kind || "").toLowerCase();
         if (kind === "pdf") this._removePdfAssetLocal(evt.paper_id);
@@ -197,34 +217,25 @@ export const useAppStore = defineStore("app", {
         return;
       }
 
-      // 任务事件：{ kind:"translate", task:{...} }
       if (evt.kind === "translate" && evt.task) {
         this._upsertTask(evt.task);
       }
 
-      // created/started：可选刷新一次，让右侧状态更快变化（TRANSLATING 等）
-      if (
-        (evt.type === "task_created" || evt.type === "task_started") &&
-        evt.kind === "translate"
-      ) {
+      if ((evt.type === "task_created" || evt.type === "task_started") && evt.kind === "translate") {
         await Promise.allSettled([this.fetchTranslateAssets(), this.fetchPdfAssets()]);
       }
 
-      // succeeded：刷新 assets，立刻显示 READY
       if (evt.type === "task_succeeded" && evt.kind === "translate") {
         await Promise.allSettled([this.fetchTranslateAssets(), this.fetchPdfAssets()]);
       }
 
-      // failed：记录错误
       if (evt.type === "task_failed" && evt.kind === "translate") {
         const msg = evt.task?.error || evt.message || "翻译任务失败";
         this.lastError = msg;
       }
     },
 
-    // ---------------- API（原有方法名保持不变） ----------------
     async refreshSnapshot() {
-      // 论文是 session 维度；assets 是全局缓存列表
       try {
         this.ensureSse();
 
@@ -246,7 +257,6 @@ export const useAppStore = defineStore("app", {
       const text = (message || "").trim();
       if (!text) return;
 
-      // 尽量提前连上 SSE，避免错过 task_started/task_succeeded
       this.ensureSse();
 
       this.loading = true;
@@ -267,7 +277,6 @@ export const useAppStore = defineStore("app", {
         this.pdfAssets = data.pdf_assets || [];
         this.translateAssets = data.translate_assets || [];
 
-        // /chat 返回 tasks 快照：用于兜底（即使 SSE 短暂未连上也能看到任务）
         if (Array.isArray(data.tasks)) {
           for (const t of data.tasks) this._upsertTask(t);
         }
@@ -284,39 +293,27 @@ export const useAppStore = defineStore("app", {
       try {
         const resp = await api.get<{ assets: PdfAsset[] }>("/pdf/assets");
         this.pdfAssets = resp.data?.assets || [];
-      } catch {
-        // ignore
-      }
+      } catch { }
     },
 
     async fetchTranslateAssets() {
       try {
         const resp = await api.get<{ assets: TranslateAsset[] }>("/translate/assets");
         this.translateAssets = resp.data?.assets || [];
-      } catch {
-        // ignore
-      }
+      } catch { }
     },
 
-    // ---------------- 删除功能 ----------------
     async deletePdfAsset(paperId: string) {
       const pid = (paperId || "").trim();
       if (!pid) return;
 
       this.lastError = "";
-
       try {
-        // axios.delete 的第二参是 config
         const resp = await api.delete<DeleteAssetResponse>(`/pdf/assets/${encodeURIComponent(pid)}`, {
           params: { session_id: this.sessionId },
         });
-
-        // 本地先移除（更丝滑）
         this._removePdfAssetLocal(pid);
-
-        // 再拉一次，以防后端同步删了别的（如 .part/.lock）
         await this.fetchPdfAssets();
-
         return resp.data;
       } catch (e: any) {
         const msg = e?.response?.data?.detail || e?.message || String(e);
@@ -330,16 +327,13 @@ export const useAppStore = defineStore("app", {
       if (!pid) return;
 
       this.lastError = "";
-
       try {
         const resp = await api.delete<DeleteAssetResponse>(
           `/translate/assets/${encodeURIComponent(pid)}`,
           { params: { session_id: this.sessionId } }
         );
-
         this._removeTranslateAssetLocal(pid);
         await this.fetchTranslateAssets();
-
         return resp.data;
       } catch (e: any) {
         const msg = e?.response?.data?.detail || e?.message || String(e);
@@ -376,13 +370,11 @@ export const useAppStore = defineStore("app", {
     async translatePaper(refIndex1based: number) {
       const tip = `准备翻译第${refIndex1based}篇论文（若未下载将自动先下载再翻译）`;
 
-      // preferAgent：走 /chat（后端已把 translate_arxiv_pdf 改为 enqueue 异步）
       if (this.preferAgent) {
         await this.sendChat(`${tip}。请开始翻译并输出中文PDF。`);
         return;
       }
 
-      // 不走 agent：直接调用 /pdf/translate/async（立即返回 task，进度靠 SSE）
       this.ensureSse();
 
       this.loading = true;

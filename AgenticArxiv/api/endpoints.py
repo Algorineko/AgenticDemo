@@ -4,8 +4,10 @@ from __future__ import annotations
 import json
 import os
 import queue
+from urllib.parse import quote
+
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel, Field
 from typing import Any, Dict, List, Optional, Literal
 
@@ -192,10 +194,6 @@ class DeleteAssetResponse(BaseModel):
 
 # ---------------- SSE ----------------
 def _sse_pack(event_json: str) -> str:
-    """
-    event_json 是 JSON 字符串，内部需含 type 字段：
-      {"type":"task_succeeded", ...}
-    """
     try:
         obj = json.loads(event_json)
         et = obj.get("type", "message")
@@ -206,16 +204,11 @@ def _sse_pack(event_json: str) -> str:
 
 @router.get("/events")
 def events(session_id: str = Query(default="default")):
-    """
-    SSE 订阅：用于推送翻译任务状态变化
-    前端：EventSource(`/events?session_id=xxx`)
-    """
     sid = session_id or "default"
     sub_id, q = event_bus.subscribe(sid)
 
     def gen():
         try:
-            # 连接确认 + 可选：把当前任务快照发一份
             hello = json.dumps(
                 {"type": "connected", "session_id": sid}, ensure_ascii=False
             )
@@ -226,7 +219,6 @@ def events(session_id: str = Query(default="default")):
                     data = q.get(timeout=15)
                     yield _sse_pack(data)
                 except queue.Empty:
-                    # keep-alive（SSE comment 行）
                     yield ": ping\n\n"
         finally:
             event_bus.unsubscribe(sid, sub_id)
@@ -234,10 +226,67 @@ def events(session_id: str = Query(default="default")):
     headers = {
         "Cache-Control": "no-cache",
         "Connection": "keep-alive",
-        # Nginx 反代时建议关缓冲：X-Accel-Buffering: no
         "X-Accel-Buffering": "no",
     }
     return StreamingResponse(gen(), media_type="text/event-stream", headers=headers)
+
+
+# ---------------- helpers ----------------
+def _is_under_root(path: str, root: str) -> bool:
+    ap = os.path.abspath(path)
+    ar = os.path.abspath(root)
+    try:
+        return os.path.commonpath([ap, ar]) == ar
+    except Exception:
+        return False
+
+
+def _inline_pdf_response(file_path: str, filename: str) -> FileResponse:
+    """
+    返回浏览器原生 inline 预览的 PDF 响应。
+    - FileResponse (Starlette) 通常支持 Range 请求，翻页/跳页体验更好。
+    """
+    # RFC 5987 filename* (UTF-8)
+    safe_name = filename or os.path.basename(file_path)
+    disp = f"inline; filename*=UTF-8''{quote(safe_name)}"
+    headers = {
+        "Content-Disposition": disp,
+        "Cache-Control": "no-store",
+    }
+    return FileResponse(file_path, media_type="application/pdf", headers=headers)
+
+
+def _has_active_task_for_paper(paper_id: str) -> bool:
+    tasks = store.list_tasks(session_id=None, limit=10000)
+    for t in tasks:
+        if t.paper_id == paper_id and t.status in ("PENDING", "RUNNING"):
+            return True
+    return False
+
+
+def _safe_remove_file(
+    path: Optional[str], root: str, deleted: List[str], warnings: List[str]
+) -> None:
+    if not path:
+        return
+    ap = os.path.abspath(path)
+    if not _is_under_root(ap, root):
+        raise HTTPException(
+            status_code=400, detail=f"拒绝删除：路径不在允许目录内: {ap}"
+        )
+    if not os.path.exists(ap):
+        return
+    try:
+        if os.path.isdir(ap):
+            raise HTTPException(
+                status_code=400, detail=f"拒绝删除目录（仅允许文件）: {ap}"
+            )
+        os.remove(ap)
+        deleted.append(ap)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"删除文件失败: {ap}, err={e}")
 
 
 # ---------------- basic ----------------
@@ -307,7 +356,6 @@ def create_translate_task(
     req: CreateTranslateTaskRequest,
 ) -> CreateTranslateTaskResponse:
     try:
-        # enqueue 会自行 resolve ref / last_active
         t = translate_runner.enqueue(
             session_id=req.session_id,
             ref=req.ref,
@@ -370,10 +418,6 @@ def pdf_download(req: DownloadPdfRequest) -> DownloadPdfResponse:
 # ---------------- pdf translate (sync 保留) ----------------
 @router.post("/pdf/translate", response_model=TranslatePdfResponse)
 def pdf_translate(req: TranslatePdfRequest) -> TranslatePdfResponse:
-    """
-    保留原同步接口（可能耗时较长）。
-    推荐前端改用 /pdf/translate/async + /events SSE
-    """
     tool_name = "translate_arxiv_pdf"
     try:
         result = registry.execute_tool(
@@ -398,11 +442,6 @@ def pdf_translate(req: TranslatePdfRequest) -> TranslatePdfResponse:
 
 @router.post("/pdf/translate/async", response_model=CreateTranslateTaskResponse)
 def pdf_translate_async(req: TranslatePdfRequest) -> CreateTranslateTaskResponse:
-    """
-    异步翻译接口
-    - 立即返回 task
-    - 任务进度/完成由 /events SSE 推送
-    """
     try:
         t = translate_runner.enqueue(
             session_id=req.session_id,
@@ -430,9 +469,7 @@ def chat(req: ChatRequest) -> ChatResponse:
         agent = ReActAgent(llm_client)
 
         result = agent.run(
-            task=req.message,
-            agent_model=req.agent_model,
-            session_id=req.session_id,
+            task=req.message, agent_model=req.agent_model, session_id=req.session_id
         )
 
         papers = store.get_last_papers(req.session_id)
@@ -463,7 +500,6 @@ def chat(req: ChatRequest) -> ChatResponse:
             translate_assets=list(translate_assets),
             tasks=tasks,
         )
-
     except Exception as e:
         log.error(f"/chat 失败: {str(e)}")
         raise HTTPException(status_code=500, detail=f"chat失败: {str(e)}")
@@ -485,51 +521,91 @@ def list_translate_assets() -> TranslateAssetsResponse:
     return TranslateAssetsResponse(assets=list(assets))
 
 
-# ---------------- delete helpers ----------------
-def _is_under_root(path: str, root: str) -> bool:
-    ap = os.path.abspath(path)
-    ar = os.path.abspath(root)
-    try:
-        return os.path.commonpath([ap, ar]) == ar
-    except Exception:
-        return False
+# ---------------- PDF view endpoints ----------------
+@router.get("/pdf/view/raw/{paper_id}")
+def view_raw_pdf(
+    paper_id: str,
+    session_id: str = Query(
+        default="default", description="用于更新 last_active（可选）"
+    ),
+):
+    """
+    预览已下载 raw PDF（浏览器原生 inline 打开）
+    """
+    sid = session_id or "default"
 
+    asset = store.get_pdf_asset(paper_id)
+    # 允许索引缺失但文件存在：fallback 到 canonical 路径
+    canonical = os.path.join(settings.pdf_raw_path, f"{paper_id}.pdf")
+    path = asset.local_path if asset and asset.local_path else canonical
 
-def _safe_remove_file(
-    path: Optional[str], root: str, deleted: List[str], warnings: List[str]
-) -> None:
-    if not path:
-        return
-    ap = os.path.abspath(path)
-    if not _is_under_root(ap, root):
+    if asset and asset.status != "READY":
         raise HTTPException(
-            status_code=400, detail=f"拒绝删除：路径不在允许目录内: {ap}"
+            status_code=409, detail=f"PDF 未处于 READY，当前状态={asset.status}"
         )
-    if not os.path.exists(ap):
-        return
-    try:
-        if os.path.isdir(ap):
-            raise HTTPException(
-                status_code=400, detail=f"拒绝删除目录（仅允许文件）: {ap}"
-            )
-        os.remove(ap)
-        deleted.append(ap)
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"删除文件失败: {ap}, err={e}")
+
+    if not path or not os.path.exists(path) or os.path.getsize(path) <= 0:
+        raise HTTPException(status_code=404, detail="raw PDF 文件不存在")
+
+    if not _is_under_root(path, settings.pdf_raw_path):
+        raise HTTPException(status_code=400, detail="拒绝预览：文件不在允许目录内")
+
+    # 更新 last_active（预览也算一次操作）
+    store.set_last_active_paper_id(sid, paper_id)
+
+    filename = f"{paper_id}.pdf"
+    return _inline_pdf_response(path, filename)
 
 
-def _has_active_task_for_paper(paper_id: str) -> bool:
-    # 尽量覆盖：active = PENDING/RUNNING
-    tasks = store.list_tasks(session_id=None, limit=10000)
-    for t in tasks:
-        if t.paper_id == paper_id and t.status in ("PENDING", "RUNNING"):
-            return True
-    return False
+@router.get("/pdf/view/translated/{paper_id}")
+def view_translated_pdf(
+    paper_id: str,
+    variant: Literal["mono", "dual"] = Query(default="mono"),
+    session_id: str = Query(
+        default="default", description="用于更新 last_active（可选）"
+    ),
+):
+    """
+    预览已翻译 PDF（默认 mono；若保留 dual 可用 variant=dual）
+    """
+    sid = session_id or "default"
+
+    asset = store.get_translate_asset(paper_id)
+    if asset and asset.status != "READY":
+        raise HTTPException(
+            status_code=409, detail=f"翻译未处于 READY，当前状态={asset.status}"
+        )
+
+    # 路径选择：优先读索引；索引缺失时 fallback 到 canonical
+    mono_canonical = os.path.join(settings.pdf_translated_path, f"{paper_id}-mono.pdf")
+    dual_canonical = os.path.join(settings.pdf_translated_path, f"{paper_id}-dual.pdf")
+
+    if variant == "dual":
+        path = (
+            asset.output_dual_path
+            if asset and asset.output_dual_path
+            else dual_canonical
+        )
+        filename = f"{paper_id}-dual.pdf"
+    else:
+        path = (
+            asset.output_mono_path
+            if asset and asset.output_mono_path
+            else mono_canonical
+        )
+        filename = f"{paper_id}-mono.pdf"
+
+    if not path or not os.path.exists(path) or os.path.getsize(path) <= 0:
+        raise HTTPException(status_code=404, detail="translated PDF 文件不存在")
+
+    if not _is_under_root(path, settings.pdf_translated_path):
+        raise HTTPException(status_code=400, detail="拒绝预览：文件不在允许目录内")
+
+    store.set_last_active_paper_id(sid, paper_id)
+    return _inline_pdf_response(path, filename)
 
 
-# ---------------- delete endpoints (not tools) ----------------
+# ---------------- delete endpoints (你已实现的删除功能保持不变) ----------------
 @router.delete("/pdf/assets/{paper_id}", response_model=DeleteAssetResponse)
 def delete_pdf_asset(
     paper_id: str,
@@ -537,14 +613,7 @@ def delete_pdf_asset(
         default="default", description="用于 SSE 广播删除事件（可选）"
     ),
 ) -> DeleteAssetResponse:
-    """
-    删除已下载 raw PDF：
-    - 删除文件（pdf_raw 下的 *.pdf 以及可能遗留的 .part/.lock）
-    - 从 pdf_cache.json 移除该 paper_id 记录
-    注意：默认不级联删除已翻译 PDF（翻译列表单独删）。
-    """
     sid = session_id or "default"
-
     asset = store.get_pdf_asset(paper_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="pdf asset 不存在")
@@ -566,14 +635,12 @@ def delete_pdf_asset(
     deleted_files: List[str] = []
     warnings: List[str] = []
 
-    # 删 raw pdf + 遗留文件
     _safe_remove_file(local_path, settings.pdf_raw_path, deleted_files, warnings)
     _safe_remove_file(part_path, settings.pdf_raw_path, deleted_files, warnings)
     _safe_remove_file(lock_path, settings.pdf_raw_path, deleted_files, warnings)
 
     removed_cache = store.delete_pdf_asset(paper_id)
 
-    # 可选：推送 SSE 事件，便于前端实时更新
     try:
         event_bus.publish(
             sid,
@@ -603,16 +670,7 @@ def delete_translate_asset(
         default="default", description="用于 SSE 广播删除事件（可选）"
     ),
 ) -> DeleteAssetResponse:
-    """
-    删除已翻译 PDF：
-    - 删除 mono/dual（若存在）
-    - 删除对应日志 output/pdf_translated_log/{paper_id}.pdf2zh.log
-    - 删除可能遗留的 .lock
-    - 从 translate_cache.json 移除该 paper_id 记录
-    注意：不删除 raw PDF。
-    """
     sid = session_id or "default"
-
     asset = store.get_translate_asset(paper_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="translate asset 不存在")
@@ -625,7 +683,6 @@ def delete_translate_asset(
     mono_path = asset.output_mono_path
     dual_path = asset.output_dual_path
     mono_lock = (mono_path or "") + ".lock"
-
     log_path = os.path.join(settings.pdf_translated_log_path, f"{paper_id}.pdf2zh.log")
 
     if mono_lock and os.path.exists(mono_lock):
@@ -636,7 +693,6 @@ def delete_translate_asset(
     deleted_files: List[str] = []
     warnings: List[str] = []
 
-    # 删翻译输出（限制在 translated 目录）
     _safe_remove_file(mono_path, settings.pdf_translated_path, deleted_files, warnings)
     if dual_path:
         _safe_remove_file(
@@ -644,14 +700,12 @@ def delete_translate_asset(
         )
     _safe_remove_file(mono_lock, settings.pdf_translated_path, deleted_files, warnings)
 
-    # 删日志（限制在 translated_log 目录）
     _safe_remove_file(
         log_path, settings.pdf_translated_log_path, deleted_files, warnings
     )
 
     removed_cache = store.delete_translate_asset(paper_id)
 
-    # SSE 通知（可选）
     try:
         event_bus.publish(
             sid,
