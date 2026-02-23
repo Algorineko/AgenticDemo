@@ -18,7 +18,7 @@
     </header>
 
     <div class="lists">
-      <!-- 任务区（最近翻译任务） -->
+      <!-- 任务区 -->
       <div class="block">
         <div class="block-title">最近翻译任务（SSE）</div>
         <div class="list-scroll">
@@ -32,8 +32,22 @@
 
             <div class="sub mono">task_id: {{ t.task_id }}</div>
 
-            <div class="sub" v-if="typeof t.progress === 'number'">
-              progress: {{ Math.round(t.progress * 100) }}%
+            <!-- progress: 进度条 + 百分比（仍保留百分比数字在其后显示） -->
+            <div class="sub progress-line" v-if="typeof t.progress === 'number'">
+              <span class="p-label">progress:</span>
+
+              <div
+                class="pbar"
+                role="progressbar"
+                :aria-valuenow="pctOf(t.progress)"
+                aria-valuemin="0"
+                aria-valuemax="100"
+                :title="pctOf(t.progress) + '%'"
+              >
+                <div class="pbar-fill" :style="{ width: pctOf(t.progress) + '%' }"></div>
+              </div>
+
+              <span class="p-pct">{{ pctOf(t.progress) }}%</span>
             </div>
 
             <div class="sub mono" v-if="t.output_pdf_path">out: {{ t.output_pdf_path }}</div>
@@ -55,7 +69,22 @@
               <div class="right-actions">
                 <span class="pill ok">READY</span>
 
-                <!-- 删除已下载 -->
+                <!-- 查看 raw -->
+                <button
+                  class="btn icon small"
+                  title="查看（新标签页打开 raw PDF）"
+                  aria-label="查看 raw PDF"
+                  :disabled="store.loading"
+                  @click="store.openRawPdf(a.paper_id)"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+
+                <!-- 删除 raw -->
                 <button
                   class="btn icon small danger"
                   title="删除已下载 PDF（raw）"
@@ -63,7 +92,6 @@
                   :disabled="store.loading"
                   @click="onDeletePdf(a.paper_id)"
                 >
-                  <!-- trash icon -->
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                       stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 6h18"></path>
@@ -97,7 +125,38 @@
               <div class="right-actions">
                 <span class="pill ok">READY</span>
 
-                <!-- 删除已翻译 -->
+                <!-- 查看 mono -->
+                <button
+                  class="btn icon small"
+                  title="查看（新标签页打开 mono PDF）"
+                  aria-label="查看 mono PDF"
+                  :disabled="store.loading"
+                  @click="store.openTranslatedPdf(t.paper_id, 'mono')"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"></path>
+                    <circle cx="12" cy="12" r="3"></circle>
+                  </svg>
+                </button>
+
+                <!-- 可选：若有 dual -->
+                <button
+                  v-if="t.output_dual_path"
+                  class="btn icon small"
+                  title="查看（新标签页打开 dual PDF）"
+                  aria-label="查看 dual PDF"
+                  :disabled="store.loading"
+                  @click="store.openTranslatedPdf(t.paper_id, 'dual')"
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                      stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M3 5h7a2 2 0 0 1 2 2v14H5a2 2 0 0 1-2-2V5z"></path>
+                    <path d="M14 7a2 2 0 0 1 2-2h5v14a2 2 0 0 1-2 2h-5V7z"></path>
+                  </svg>
+                </button>
+
+                <!-- 删除翻译 -->
                 <button
                   class="btn icon small danger"
                   title="删除已翻译 PDF（mono/dual/log）"
@@ -105,7 +164,6 @@
                   :disabled="store.loading"
                   @click="onDeleteTranslate(t.paper_id)"
                 >
-                  <!-- trash icon -->
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
                       stroke-linecap="round" stroke-linejoin="round">
                     <path d="M3 6h18"></path>
@@ -150,6 +208,13 @@ const trList = computed(() => {
   return arr.sort((a, b) => (String(b.updated_at || "")).localeCompare(String(a.updated_at || "")));
 });
 
+function pctOf(p: number) {
+  const v = Number(p);
+  if (!Number.isFinite(v)) return 0;
+  const clamped = Math.max(0, Math.min(1, v));
+  return Math.round(clamped * 100);
+}
+
 function formatBytes(n: number | null | undefined) {
   const v0 = Number(n || 0);
   if (!Number.isFinite(v0) || v0 <= 0) return "0 B";
@@ -172,7 +237,9 @@ function statusClass(s: string) {
 }
 
 async function onDeletePdf(paperId: string) {
-  const ok = window.confirm(`确认删除已下载 PDF？\n\npaper_id=${paperId}\n\n(只删除 raw PDF 与 pdf_cache.json 记录，不删除翻译结果)`);
+  const ok = window.confirm(
+    `确认删除已下载 PDF？\n\npaper_id=${paperId}\n\n(只删除 raw PDF 与 pdf_cache.json 记录，不删除翻译结果)`
+  );
   if (!ok) return;
 
   try {
@@ -183,7 +250,9 @@ async function onDeletePdf(paperId: string) {
 }
 
 async function onDeleteTranslate(paperId: string) {
-  const ok = window.confirm(`确认删除已翻译 PDF？\n\npaper_id=${paperId}\n\n(会删除 mono/dual/log 与 translate_cache.json 记录，不删除 raw PDF)`);
+  const ok = window.confirm(
+    `确认删除已翻译 PDF？\n\npaper_id=${paperId}\n\n(会删除 mono/dual/log 与 translate_cache.json 记录，不删除 raw PDF)`
+  );
   if (!ok) return;
 
   try {
@@ -230,7 +299,6 @@ async function onDeleteTranslate(paperId: string) {
   font-size: 12px;
 }
 
-/* 三块列表：任务 + 下载 + 翻译 */
 .lists {
   flex: 1;
   min-height: 0;
@@ -307,4 +375,42 @@ async function onDeleteTranslate(paperId: string) {
 .pill.neutral { opacity: .75; }
 
 .empty { color: var(--muted); font-size: 12px; padding: 6px 2px; }
+
+/* Progress bar */
+.progress-line{
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.p-label{
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.pbar{
+  position: relative;
+  height: 8px;
+  width: 160px;
+  border-radius: 999px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.03);
+  overflow: hidden;
+  flex: 0 0 auto;
+}
+
+.pbar-fill{
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  background: rgba(89,153,255,0.55);
+  transition: width 180ms ease;
+}
+
+.p-pct{
+  min-width: 44px;
+  text-align: right;
+  white-space: nowrap;
+  color: var(--muted);
+}
 </style>

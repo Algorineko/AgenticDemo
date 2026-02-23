@@ -5,7 +5,7 @@
         <div class="brand">
           <div class="logo">🧩</div>
           <div>
-            <div class="name">AgenticArxiv Web</div>
+            <div class="name">AgenticArxiv</div>
             <div class="desc">对话 + 论文临时记忆 + 下载/翻译缓存</div>
           </div>
         </div>
