@@ -37,72 +37,33 @@ AgenticArXiv 系统的核心目标是为用户提供一个基于自然语言对�
 系统采用前后端分离的三层架构设计，自上而下分为表现层、业务逻辑层和数据持久化层。
  
 [图2.1. AgenticArXiv 系统总体架构图。表现层为 Vue 3 前端（通过 HTTP + SSE 与后端通信），业务逻辑层包含 FastAPI 路由、智能体执行引擎（BaseAgent 及其三种子类）、工具注册中心（ToolRegistry）和事件总线（EventBus），数据持久化层包含 MySQL 数据库（7 张表）和本地文件系统（PDF 原始文件与翻译文件）] 
-表现层由 Vue 3 前端应用构成，包含对话面板（ChatPanel）、论文列表（PapersPanel）、资产管理（AssetsPanel）、执行日志（LogsPanel）和系统设置（SettingsPanel）五个功能模块。前端通过 axios HTTP 客户端向后端发送用户请求，同时通过 SSE 长连接接收智能体执行步骤和翻译进度的实时推送。
-业务逻辑层是系统的核心，由以下主要模块构成： 
-（1）FastAPI 路由层（api/endpoints.py）：定义了 20 余个 RESTful API 端点，涵盖对话、论文管理、资产查询、日志检索和配置管理等功能，并提供 SSE 事件流端点供前端订阅。
-（2）智能体执行引擎（agents/）：以 BaseAgent 抽象基类为核心，定义了 ReAct 执行循环的通用逻辑。三种具体智能体实现（RegexAgent、MCPAgent、SkillAgent）继承 BaseAgent 并分别实现不同的工具调用机制，通过环境变量 AGENT_TYPE 进行配置切换。
-（3）工具注册中心（tools/tool_registry.py）：全局单例的 ToolRegistry 负责工具的注册、发现和执行。四个核心工具在模块加载时通过导入副作用自动完成注册，使智能体无需硬编码即可动态发现可用工具。
-（4）服务层（services/）：包括 EventBus 事件发布/订阅总线（支持按会话隔离的 SSE 推送）、TranslateRunner 异步翻译执行器（后台线程模型）、以及日志服务（负责将对话记录和智能体步骤持久化到数据库）。
-（5）LLM 客户端（utils/llm_client.py）：封装了与大语言模型服务的 HTTP 交互，支持温度、最大 Token 数等参数配置，兼容 OpenAI Chat Completions API 协议。
-数据持久化层由 MySQL 数据库和本地文件系统共同承担。数据库存储 7 张表的结构化数据（包括 PDF 资产、翻译资产、会话状态、会话论文、翻译任务、聊天日志和智能体步骤），本地文件系统则存储 PDF 原始文件（pdf_raw/）和翻译输出文件（pdf_translated/）。系统在启动时通过 SQLAlchemy 的 `Base.metadata.create_all()` 幂等建表，无需维护独立的数据库迁移文件。
+表现层由 Vue 3 前端应用构成，包含对话面板、论文列表、资产管理、执行日志和系统设置五个功能模块，通过 HTTP 和 SSE 与后端通信。
+业务逻辑层包含 FastAPI 路由层、智能体执行引擎（BaseAgent及三种子类）、工具注册中心（ToolRegistry）、服务层（EventBus事件总线、TranslateRunner异步翻译执行器、日志服务）和 LLM 客户端。数据持久化层由 MySQL 数据库（7张表）和本地文件系统（PDF原始文件与翻译文件）共同承担。
 2.2 有界 ReAct 执行循环
 2.2.1 ReAct 框架原理
-ReAct（Reasoning and Acting）框架由 Yao 等人于 2022 年提出，其核心思想是让大语言模型在执行任务时交替进行推理和行动[Yao et al.,arxiv.org/abs/2210.03629]。在每一轮迭代中，模型首先输出一段推理文本（Thought），阐述当前对任务状态的分析和下一步计划；随后输出一个具体操作（Action），通常是对外部工具的调用；工具执行后返回的结果作为观察（Observation）反馈给模型，模型据此进行下一轮推理。这一"思考—行动—观察"的循环持续进行，直到模型判断任务已完成并输出终止信号。
-与纯链式思维（Chain-of-Thought）方法相比，ReAct 的优势在于推理过程能够根据真实的工具执行结果进行动态调整，而非完全依赖模型的内部知识。例如，当智能体搜索 ArXiv 论文后发现结果数量不足，可以在下一轮推理中调整搜索参数重新尝试。这种基于观察的反馈机制使 ReAct 特别适合需要与外部环境交互的任务场景。
-在本系统中，ReAct 执行循环被实现为一个有界迭代过程，每轮迭代包含以下步骤：
+ReAct 框架让大语言模型在执行任务时交替进行推理（Thought）和行动（Action），工具执行结果作为观察（Observation）反馈给模型[Yao et al.,arxiv.org/abs/2210.03629]。本系统中，ReAct 执行循环被实现为有界迭代过程：
 
 $$\text{Iteration}_i: \quad \text{Thought}_i \rightarrow \text{Action}_i \rightarrow \text{Observation}_i \quad (i = 1, 2, \ldots, N)$$
 
 其中 $N$ 为最大迭代次数上界。当模型输出 $\text{Action} = \text{FINISH}$ 时循环提前终止，当 $i = N$ 时强制终止并记录 FORCE_STOP 标记。
 2.2.2 BaseAgent 模板方法模式设计
-BaseAgent 类是整个智能体架构的核心抽象，采用模板方法（Template Method）设计模式实现。该模式将 ReAct 执行循环的通用骨架定义在基类中，而将与具体工具调用方式相关的可变步骤延迟到子类实现。这种设计使得三种工具调用模式能够共享完全相同的执行循环、日志记录、会话管理和副作用处理逻辑，仅在工具交互层面存在差异。
-BaseAgent 定义了四个抽象方法，构成子类必须实现的扩展接口： 
-（1）`discover_tools() -> List[Dict]`：工具发现接口，返回当前可用工具的列表，每个工具包含名称、描述和参数模式。Regex 模式和 Skill-CLI 模式从 ToolRegistry 读取，MCP 模式通过 JSON-RPC 从 MCP Server 进程查询。
-（2）`build_messages(task, tools_info, history_text) -> Tuple[List[Dict], Dict]`：消息构造接口，将任务描述、工具信息和历史记录组装为 LLM 请求的 messages 列表。不同模式使用不同的 Prompt 模板——Regex 模式使用标准 ReAct Prompt，Skill-CLI 模式注入完整的 SKILL.md 工具文档。
-（3）`parse_response(raw_response) -> Tuple[str, Optional[Dict]]`：响应解析接口，从 LLM 的原始输出中提取推理文本和操作指令。返回 `(thought, action_dict)` 二元组，其中 `action_dict` 为 `None` 表示模型发出了 FINISH 终止信号。Regex 模式通过正则表达式解析，MCP 模式同样使用正则但输出格式可能不同，Skill-CLI 模式提取 Bash 命令。
-（4）`invoke_tool(tool_name, args) -> Any`：工具调用接口，执行具体的工具操作并返回结果。Regex 模式直接调用 `registry.execute_tool()`，MCP 模式通过 `session.call_tool()` 发送 JSON-RPC 请求，Skill-CLI 模式通过 `subprocess.run()` 执行 CLI 命令。
-此外，BaseAgent 还提供了两个可选的钩子方法供子类覆盖：`format_tools_for_prompt()` 控制工具描述的格式化方式（Skill-CLI 模式覆盖此方法以注入 SKILL.md 全文），`format_history()` 控制历史记录的格式化方式。
+BaseAgent 类是整个智能体架构的核心抽象，采用模板方法（Template Method）设计模式实现。该模式将 ReAct 执行循环的通用骨架定义在基类中，而将与具体工具调用方式相关的可变步骤延迟到子类实现，使三种模式共享完全相同的执行循环、日志记录、会话管理和副作用处理逻辑。
+BaseAgent 定义了四个抽象方法作为子类的扩展接口：工具发现（discover_tools）、消息构造（build_messages）、响应解析（parse_response）和工具调用（invoke_tool）。三种模式在这四个环节上的差异构成了它们的核心区别——例如工具发现环节，Regex 和 Skill-CLI 模式从 ToolRegistry 读取，MCP 模式则通过 JSON-RPC 从子进程查询；工具调用环节，Regex 模式在进程内直接调用，MCP 模式通过协议通信，Skill-CLI 模式启动子进程执行命令。此外 BaseAgent 还提供了钩子方法供子类覆盖工具描述和历史记录的格式化方式。
 
  
 [图2.2. BaseAgent 模板方法模式类图。BaseAgent 定义了 run() 骨架方法和若干个抽象方法，RegexAgent、MCPAgent、SkillAgent 三个子类分别实现这些抽象方法]
 2.2.3 有界迭代控制与终止策略
-为防止智能体陷入无限循环或因 LLM 输出异常导致的无限重试，系统在 ReAct 执行循环中引入了有界迭代控制机制。BaseAgent 的构造函数中设置了 `max_iterations = 5` 作为迭代次数上界，即智能体在单次任务中最多执行 5 轮"推理—行动—观察"循环。
-系统设计了三种终止策略： 
-（1）正常终止（FINISH）：当 LLM 在推理后输出 `Action: FINISH` 时，`parse_response()` 返回 `action_dict = None`，执行循环检测到此信号后正常退出。这是最常见的终止方式，表明智能体认为任务已完成。
-（2）强制终止（FORCE_STOP）：当迭代次数达到 `max_iterations` 时，系统强制终止循环并将最后一步的 action 标记为 `"FORCE_STOP"`。这一机制防止了因模型反复推理但无法达成终止条件而导致的资源浪费和响应延迟。
-（3）异常终止（ERROR）：当 LLM 调用过程中发生异常（如网络超时、API 限流等），系统捕获异常并将错误信息记录到历史中，随后退出循环。错误信息以原始异常消息的形式保留，便于后续排查。
-每种终止情况都会被完整记录到数据库的 agent_steps 表中，包括终止原因、累计的 LLM 推理时间和工具执行时间。执行循环结束后，系统从历史记录中反向搜索最后一个有效的非终止观察结果（跳过 FINISH、FORCE_STOP 和 ERROR 标记的步骤），将其作为回复内容记录到 chat_logs 表并返回给前端展示。
-最终返回的结果字典包含完整的执行信息：任务描述、消息标识、完整的推理历史（每步包含 thought/action/observation）、最终观察结果、总耗时、迭代次数、智能体类型、分步时间度量（总 LLM 时间、总工具时间、框架开销，其中框架开销 = 总耗时 - LLM 时间 - 工具时间）以及 Token 用量统计（提示 Token 数、补全 Token 数、总 Token 数）。这些数据为第五章的基准评测提供了细粒度的性能度量基础。
-2.3 工具注册与调用机制
-2.3.1 ToolRegistry 工具注册中心
-ToolRegistry 是系统中工具管理的核心组件，采用全局单例模式实现。它维护一个以工具名称为键的字典，每个条目存储工具的名称、自然语言描述、JSON Schema 参数模式和可调用函数四元组。ToolRegistry 提供了三个核心方法： 
-`register_tool(name, description, parameter_schema, func)` 方法将一个工具注册到全局字典中。工具名称作为唯一标识，重复注册会覆盖先前的定义。参数模式遵循 JSON Schema 规范，使工具接口具有机器可读的自文档性。工具函数为普通 Python 可调用对象，在执行时通过关键字参数展开（`func(arguments)`）进行调用。
-`list_tools()` 方法返回所有已注册工具的公开信息（名称、描述、参数模式），但不暴露函数引用本身。这一设计将工具的描述信息（供 LLM Prompt 注入）与实现细节（供运行时执行）进行了分离，同时也是 MCP 模式下 `tools/list` 端点的返回内容。
-`execute_tool(name, arguments)` 方法根据工具名称查找注册表，将参数字典展开后调用对应的函数。该方法对三类异常进行了区分处理：工具未注册抛出 `ValueError`，参数类型不匹配抛出 `ValueError`（附带原始 TypeError 信息），工具执行过程中的其他异常包装为 `RuntimeError` 并保留原始错误描述。
-四个核心工具在各自模块文件的顶层代码中调用 `registry.register_tool()` 完成注册。由于 Python 的模块导入机制，只要在应用启动时导入这些模块，工具便自动完成注册，无需集中式的初始化代码。这种"导入即注册"的设计保持了工具定义与注册的就近性，新增工具只需创建新模块文件并在其中完成注册即可。
-2.3.2 工具参数规范（JSON Schema）
-系统中所有工具的参数定义均遵循 JSON Schema 规范。每个工具的参数模式是一个 `type: "object"` 的 JSON Schema 对象，其 `properties` 字段列出所有参数的名称、类型、描述、默认值和约束条件。例如，论文检索工具的 `aspect` 参数使用 `enum` 约束限定合法的子领域代码，`max_results` 参数通过 `minimum` 和 `maximum` 约束限定返回范围。采用 JSON Schema 使工具描述具有机器可读的自文档性，同一份 Schema 在三种模式中复用——Regex 模式格式化后注入 Prompt，MCP 模式通过 `tools/list` 端点返回，Skill-CLI 模式从 SKILL.md 文档中以人类可读形式呈现。对于需要接受多种类型的参数（如论文引用 `ref` 可以是整数、字符串或 null），系统使用 `anyOf` 关键字进行联合类型定义，使 LLM 能够根据用户表述自然选择合适的参数类型。
-2.3.3 四个核心工具的实现（检索/下载/翻译/缓存查询）
-系统围绕 ArXiv 论文中文化交付的完整流程注册了四个核心工具。论文检索工具（get_recently_submitted_cs_papers）接受子领域代码、时间范围和最大返回数量三个参数，基于 `arxiv` Python 库构造 API 查询，支持 37 个计算机科学子领域，为每篇论文提取 ID、标题、作者、摘要等 13 个字段，其中摘要截断为 200 字符以控制上下文长度。PDF 下载工具（download_arxiv_pdf）将指定论文的 PDF 原文下载到本地并维护缓存索引，其关键设计在于论文引用解析——`ref` 参数支持整数序号、ArXiv ID、标题子串匹配和 null（引用最近操作的论文）四种形式，由 Store 层的 `resolve_paper()` 方法统一处理。下载过程通过文件锁实现并发互斥，资产状态（NOT_DOWNLOADED → DOWNLOADING → READY/FAILED）记录到数据库中，已存在的文件直接返回缓存命中结果。
-PDF 翻译工具（translate_arxiv_pdf）是系统中最复杂的工具，因其耗时特性采用了异步执行模式——系统将翻译请求交给 TranslateRunner 后台线程处理并立即返回任务 ID，翻译进度通过 SSE 实时推送到前端。在执行翻译前工具会自动确保原始 PDF 已下载到本地，翻译引擎调用 pdf2zh 输出单语翻译文件和可选的双语对照文件。缓存状态查询工具（get_paper_cache_status）提供轻量级的资产状态检查接口，从数据库查询指定论文的下载和翻译状态并返回结构化结果。四个工具均支持多种论文引用方式，且每次工具执行后自动更新会话的 `last_active_paper_id`，使后续操作可通过 `ref=null` 引用最近操作的论文。
+为防止智能体陷入无限循环，系统设置了 max_iterations = 5 的迭代次数上界。系统支持三种终止策略：正常终止（FINISH，LLM 输出终止信号）、强制终止（FORCE_STOP，达到迭代上限）和异常终止（ERROR，LLM 调用异常）。每种终止情况都会记录到数据库 agent_steps 表，并由系统提取最后一个有效观察结果返回给前端。最终返回的结果字典包含完整执行信息，包括推理历史、耗时、迭代次数、分步时间度量和 Token 用量统计，为第五章基准评测提供了细粒度的性能度量基础。
+2.3 工具注册与核心工具
+ToolRegistry 是系统中工具管理的核心组件，采用全局单例模式实现，维护工具名称到工具元数据（描述、参数模式、函数引用）的映射。它提供工具注册（register_tool）、发现（list_tools）和执行（execute_tool）三项核心能力，支持"导入即注册"的设计使工具定义与注册保持就近性。所有工具参数遵循 JSON Schema 规范以提供机器可读的自文档性，同一份 Schema 在三种模式中复用——Regex 模式格式化后注入 Prompt，MCP 模式通过协议端点返回，Skill-CLI 模式以 SKILL.md 文档呈现。
+系统围绕 ArXiv 论文中文化交付流程注册了四个核心工具：论文检索工具基于 arxiv 库查询计算机科学子领域的最近提交；PDF 下载工具将论文原文下载到本地并维护缓存索引，支持多种论文引用方式（整数序号、ArXiv ID、标题子串、null表示最近操作论文）；PDF 翻译工具因耗时特性采用异步执行模式，将翻译请求交给 TranslateRunner 后台线程并通过 SSE 推送进度；缓存查询工具提供轻量级的资产状态检查。四个工具均支持灵活的论文指代，每次执行后自动更新会话的 last_active_paper_id 以支持上下文连续性。
 2.4 会话上下文管理
-在多轮对话场景中，用户往往期望智能体能够"记住"先前的操作结果。例如用户先要求搜索论文然后说"下载第 3 篇"，智能体需要知道"第 3 篇"的具体指代。系统通过全局上下文注入机制和灵活的论文指代解析实现这一能力。在每次任务执行前，BaseAgent 的 `_enrich_task_with_context()` 方法从 Store 中检索当前会话已缓存的论文列表，若存在已检索的论文则将前 10 篇的标题以编号列表形式追加到任务描述末尾并附带"可直接用 ref 序号引用，无需重新搜索"的提示。这一机制使 LLM 既能正确理解用户的序号引用，又能避免不必要的重复检索。会话论文缓存设有 60 分钟 TTL 过期策略，超期后上下文注入失效，智能体将重新执行搜索。
-Store 层的 `resolve_paper()` 方法按优先级解析 `ref` 参数：当 `ref` 为 `None` 时表示"最近一次操作的论文"，从 sessions 表的 `last_active_paper_id` 字段获取；当 `ref` 为整数时作为 1-based 序号直接索引会话论文列表；当 `ref` 为匹配 `(?:第)?\s*(\d+)\s*(?:篇)?` 的字符串时提取数字作为序号；当 `ref` 为其他字符串时先尝试按精确 paper_id 匹配再尝试标题子串匹配。每次工具执行后系统从返回结果中提取 `paper_id` 并更新会话的 `last_active_paper_id`，搜索工具的返回结果存储到 session_papers 表中为后续序号引用建立索引。这种"操作即更新上下文"的设计使会话状态始终与用户最新操作保持同步。
+系统通过全局上下文注入机制和灵活的论文指代解析支持多轮对话中的上下文连续性。在每次任务执行前，BaseAgent 从 Store 检索当前会话已缓存的论文列表，将前10篇标题以编号形式追加到任务描述并提示可直接引用序号，使 LLM 既能理解用户的序号指代又能避免重复检索。会话论文缓存设有 60 分钟 TTL 过期策略。Store 层的 resolve_paper() 方法按优先级解析论文引用：null 表示最近操作论文、整数作为序号索引、字符串尝试 ArXiv ID 和标题子串匹配。每次工具执行后系统自动更新会话的 last_active_paper_id，搜索结果存储到 session_papers 表建立序号索引，这种"操作即更新上下文"的设计使会话状态与用户操作保持同步。
 2.5 Prompt 工程与 LLM 交互
-2.5.1 ReAct Prompt 模板设计
-系统的 ReAct Prompt 模板定义在 `prompt_templates.py` 中，采用结构化的多段式设计。模板包含以下关键组成部分： 
-（1）角色定义：将 LLM 定位为"AI 研究助手"，明确其能力边界是获取和处理 ArXiv 论文。
-（2）工具描述注入：通过 `{tools_description}` 占位符动态注入当前可用工具的格式化描述。`format_tool_description()` 函数将每个工具的名称、描述和参数信息格式化为结构化文本，对于包含枚举约束的参数（如子领域代码）列出所有合法值（当值超过 5 个时显示省略提示），对于其他参数显示类型、描述和默认值。
-（3）ReAct 格式规范：显式指定 Thought/Action/Observation 的交替格式，以及任务完成时输出 `Action: FINISH` 的终止约定。
-（4）强约束指令：针对 LLM 常见的格式错误，模板中包含了严格的 JSON 格式约束，要求 Action 后的 JSON 必须使用双引号、小写 true/false/null，禁止 Python 风格的 True/False/None、尾随逗号、注释和额外文本。
-（5）特殊语义约定：模板定义了两项重要的语义约定。其一是论文指代约定——当用户未给出明确的论文序号或 ID 时，LLM 应将 `ref` 设为 `null`（JSON null），由工具层自动定位最近操作的论文。其二是异步任务约定——翻译工具调用后应直接 FINISH，不应轮询查看翻译状态，因为进度由前端 SSE 实时追踪。
-（6）正确示例：模板提供了两个格式正确的 Action 示例，包含完整的 JSON 参数对象，帮助 LLM 通过少样本学习（few-shot learning）掌握输出格式。
-（7）历史记录注入：通过 `{history}` 占位符将此前各轮的 Thought/Action/Observation 追加到 Prompt 末尾，使 LLM 能够感知任务的执行进展。
-2.5.2 强约束格式控制
-系统从 Prompt 设计和解析容错两个层面实施格式控制策略。在 Prompt 层面，模板中嵌入明确的 JSON 格式约束（双引号、小写 true/false/null、禁止尾随逗号和注释），通过正反示例强化 LLM 对正确格式的认知，同时设置较低温度参数（temperature = 0.1）以减少输出随机性，限制最大输出 Token 数为 1000 防止冗长推理。在防幻觉方面，系统通过工具描述中精确列出合法参数值和类型约束、会话上下文注入提供真实论文列表、异步任务约定明确翻译工具的异步特性等机制，降低 LLM 产生无效工具调用的风险。在解析层面，各子类的 `parse_response()` 方法实现具体容错策略，如 RegexAgent 在正则匹配失败时尝试直接提取花括号包围的 JSON 对象作为 fallback。
+系统的 ReAct Prompt 模板采用结构化的多段式设计，核心组成包括：角色定义（AI 研究助手）、动态工具描述注入（通过占位符注入格式化的工具信息）、ReAct 格式规范（Thought/Action/Observation 交替和 FINISH 终止约定）、正确示例（通过少样本学习引导输出格式）以及历史记录注入（使 LLM 感知任务执行进展）。模板还定义了两项关键语义约定：论文指代约定（未指定论文时将 ref 设为 null 由工具层自动定位）和异步任务约定（翻译工具调用后应直接 FINISH，进度由 SSE 追踪）。
+在格式控制方面，系统从 Prompt 设计和解析容错两个层面保障 LLM 输出质量。Prompt 层面嵌入严格的 JSON 格式约束和正反示例，配合低温度参数（temperature=0.1）减少随机性；防幻觉方面通过工具描述中精确列出合法参数值和上下文注入降低无效调用风险；解析层面各子类实现具体容错策略，如正则匹配失败时尝试直接提取 JSON 对象作为降级方案。
 2.6 本章小结
-本章详细阐述了 AgenticArXiv 系统的核心架构设计与实现。首先介绍了系统的总体架构，包括技术选型（FastAPI + SQLAlchemy + Vue 3）和三层模块划分（表现层、业务逻辑层、数据持久化层）。随后深入分析了有界 ReAct 执行循环的设计，阐明了 BaseAgent 模板方法模式如何将通用的循环控制逻辑与可变的工具调用机制解耦，以及三种终止策略（正常终止、强制终止、异常终止）如何保障执行循环的有界性。接着介绍了 ToolRegistry 工具注册中心和基于 JSON Schema 的参数规范设计，并详细描述了四个核心工具（检索、下载、翻译、缓存查询）的实现细节，其中翻译工具的异步执行模式是一个关键设计亮点。会话上下文管理部分阐述了全局上下文注入机制和多模式论文指代解析策略，展示了系统如何在多轮对话中维护连贯的会话状态。最后，Prompt 工程部分介绍了 ReAct Prompt 模板的多段式设计和从 Prompt 约束到解析容错的多层格式控制策略。
-本章所述的架构构成了三种工具调用模式的共享基础设施。下一章将在此基础上，分别阐述 Regex 模式、MCP 模式和 Skill-CLI 模式的具体设计与实现。
+本章阐述了 AgenticArXiv 系统的核心架构设计。系统采用三层架构（表现层、业务逻辑层、数据持久化层），以 BaseAgent 模板方法模式为核心实现了有界 ReAct 执行循环，通过 ToolRegistry 工具注册中心管理四个核心工具，并设计了会话上下文注入机制和多层 Prompt 格式控制策略。本章所述的架构构成了三种工具调用模式的共享基础设施。
 第三章 三种工具调用模式的设计与实现
 3.1 设计动机与对比维度
 如第一章所述，当前 LLM 智能体领域在工具调用的工程实现层面存在多种范式：进程内直接函数调用、基于标准化协议的跨进程 RPC 调用、以及让 LLM 生成可执行命令的文档驱动方式。这些范式各有优劣，但现有研究缺乏在统一条件下对其进行定量比较的工作。本系统的核心设计动机之一，正是通过在同一个应用场景中实现三种典型的工具调用模式，并保持除工具调用机制以外的所有变量一致，从而为模式间的公平比较提供实验基础。
