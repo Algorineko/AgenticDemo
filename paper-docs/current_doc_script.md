@@ -124,23 +124,9 @@ Store 层的 `resolve_paper()` 方法按优先级解析 `ref` 参数：当 `ref`
 三种模式共享同一个 BaseAgent 执行循环、同一个 ToolRegistry 工具注册中心和完全相同的四个核心工具实现，因此上述评测指标的差异可以归因于工具调用机制本身。详细的定量评测结果将在第五章呈现。
 3.2 Regex 模式：进程内直接调用
   3.2.1 LLM 输出的正则解析策略
-Regex 模式是三种模式中最直接的实现方案。在该模式下，LLM 按照 ReAct Prompt 模板的要求输出格式化文本，智能体通过正则表达式从中提取推理内容和操作指令。解析过程采用三级策略，从严格匹配逐级降级到模糊提取，以兼顾格式规范性和实际容错需求。
-第一级：标准正则解析。使用两个正则表达式分别提取 Thought 和 Action 部分： 
-```
-Thought:\s*(.*?)(?=\nAction:|$)     # 匹配 Thought: 到 Action: 之间的文本
-Action:\s*(.*?)(?=\nObservation:|$)  # 匹配 Action: 到 Observation: 之间的文本
-```
-两个正则均使用 `re.DOTALL` 标志以支持跨行匹配。提取出的 Action 文本首先判断是否为终止信号 `"FINISH"`（不区分大小写），若是则返回 `(thought, None)` 表示任务完成。
-第二级：JSON 对象提取。对于非 FINISH 的 Action 文本，使用 `({.*})` 正则从中提取花括号包围的 JSON 对象，然后通过 `json.loads()` 解析为 Python 字典。解析结果按两种情况处理：若字典包含 `"name"` 和 `"args"` 键，则直接构造 `action_dict`；若字典不包含这两个键（说明 LLM 只输出了参数而未指明工具名），则默认使用工具列表中的第一个工具，并将整个字典作为参数传入。这一容错设计应对了 LLM 偶尔省略工具名称的情况。
-第三级：文本降级提取。当 JSON 解析失败时（例如 LLM 输出了非法 JSON），系统进入最后的文本降级策略。该策略遍历所有已注册工具的名称，检查 Action 文本中是否包含某个工具名。若匹配成功，则进一步通过专用正则（如 `max_results[=\s:]+(\d+)`、`aspect[=\s:]+["\']?([A-Z*]+)["\']?`、`days[=\s:]+(\d+)`）从文本中提取常见参数的键值对，构造最小可用的调用参数。这一策略虽然能力有限，但为 LLM 输出严重偏离预期格式时提供了最后的补救措施。
+Regex 模式是三种模式中最直接的实现方案。智能体通过正则表达式从 LLM 输出中提取推理内容和操作指令，解析过程采用三级策略从严格匹配逐级降级以兼顾规范性和容错需求。第一级标准正则解析使用 `Thought:\s*(.*?)(?=\nAction:|$)` 和 `Action:\s*(.*?)(?=\nObservation:|$)` 分别提取推理和操作部分，判断 Action 是否为终止信号 FINISH。第二级 JSON 对象提取通过 `({.*})` 正则从 Action 文本中提取花括号包围的 JSON 对象并解析，若字典包含 `name` 和 `args` 键则直接构造调用，否则默认使用首个工具。第三级文本降级提取在 JSON 解析失败时遍历工具名称进行匹配，通过专用正则从文本中提取常见参数键值对构造最小可用参数，为输出严重偏离预期时提供最后补救。
   3.2.2 RegexAgent 实现细节
-RegexAgent 是 Regex 模式的具体实现类，继承自 BaseAgent 并实现了四个抽象方法。
-在构造函数中，RegexAgent 通过导入四个工具模块触发工具的自动注册。由于 Python 的模块导入具有幂等性（重复导入不会重复执行注册），这一设计在保证工具可用的同时避免了重复注册问题。
-`discover_tools()` 方法直接返回 `registry.list_tools()` 的结果，即从全局 ToolRegistry 中获取所有已注册工具的公开信息。由于 Regex 模式的工具运行在同一进程内，工具发现过程没有任何网络或进程间通信开销。
-`build_messages()` 方法调用 `get_react_prompt()` 函数，将任务描述、格式化后的工具信息和历史记录组装为标准的 ReAct Prompt，然后包装为 OpenAI Chat Completions API 格式的单条 user 消息。返回的 `extra` 字典为空，表示不需要额外的 API 参数。
-`parse_response()` 方法从 LLM 响应的标准 OpenAI 格式中提取文本内容（`response["choices"][0]["message"]["content"]`），然后委托给前述的 `_parse_react_text()` 方法执行三级正则解析。
-`invoke_tool()` 方法是三种模式中最简洁的——仅一行代码 `registry.execute_tool(tool_name, args)`，直接在当前进程中调用工具函数。工具函数的返回值无需序列化即可传递给 BaseAgent 的 `_execute_with_side_effects()` 进行后续处理。
-整个 RegexAgent 的实现仅有约 120 行代码（含正则解析逻辑），体现了 Regex 模式"最短路径"的设计哲学。
+RegexAgent 是 Regex 模式的具体实现类，继承自 BaseAgent 并实现四个抽象方法。构造函数中通过导入工具模块触发自动注册（Python 模块导入幂等性保证不重复注册）。`discover_tools()` 直接返回 `registry.list_tools()` 获取已注册工具，无进程间通信开销。`build_messages()` 调用 `get_react_prompt()` 组装标准 ReAct Prompt 为单条 user 消息。`parse_response()` 从 LLM 响应中提取文本内容并委托给 `_parse_react_text()` 执行三级正则解析。`invoke_tool()` 仅一行代码 `registry.execute_tool(tool_name, args)` 直接在当前进程中调用工具函数，返回值无需序列化即可传递。整个实现仅约 120 行代码，体现了 Regex 模式"最短路径"的设计哲学。
   3.2.3 优势与局限分析
 优势：Regex 模式的核心优势在于简洁和低开销。由于工具调用完全在进程内完成，不涉及进程创建、网络通信或序列化/反序列化操作，其框架附加开销（约 38 毫秒）在三种模式中处于最低水平。此外，调试便利性是另一个显著优点——工具执行发生在同一进程空间，可以直接使用断点调试器跟踪从 LLM 输出解析到工具函数执行的完整流程。对于本系统这样工具数量有限（4 个）且工具实现由同一团队维护的场景，Regex 模式是开发效率最高的选择。
 局限：该模式的主要局限在于紧耦合和缺乏标准化。工具函数与智能体运行在同一进程中，意味着工具的异常（如内存泄漏或进程崩溃）可能影响整个智能体系统。正则解析策略虽然通过三级降级提供了一定的容错能力，但其解析逻辑与 ReAct Prompt 的输出格式强耦合——如果切换 Prompt 风格或使用不同的 LLM（其输出格式可能存在差异），解析逻辑可能需要相应调整。此外，Regex 模式不具备进程隔离能力，不适合工具来自不可信第三方的场景。
@@ -150,18 +136,9 @@ Model Context Protocol（MCP）是 Anthropic 于 2024 年底发布的开放标�
 MCP 的通信基于 JSON-RPC 2.0 协议，支持 stdio（标准输入/输出）和 HTTP+SSE 两种传输方式。在本系统中，MCP Server 作为独立的 Python 子进程运行，通过 stdio 方式与主进程（MCPAgent 所在进程）通信。核心的协议交互包括两个端点：`tools/list` 用于发现可用工具及其参数模式，`tools/call` 用于执行指定工具并获取结果。工具的参数和返回值均以 JSON 格式序列化传输。
 MCP 标准化的价值在于互操作性。当智能体系统采用 MCP 协议时，它可以对接任何遵循同一协议的工具服务器，而无需关心服务器的内部实现。这使得工具生态具有可插拔性——社区开发的 MCP Server（如文件系统操作、数据库查询、Web 搜索等）可以直接接入系统，无需修改智能体代码。
   3.3.2 MCP Server 实现（stdio JSON-RPC）
-本系统的 MCP Server 实现在 `mcp_protocol/server.py` 中，是一个精简的桥接层，将 ToolRegistry 中已注册的工具暴露为 MCP 协议端点。Server 使用 `mcp` Python 库的 `Server` 类作为协议框架，通过装饰器注册两个核心处理函数。
-`@server.list_tools()` 装饰器注册的异步函数负责响应 `tools/list` 请求。该函数遍历 `registry.list_tools()` 返回的工具列表，将每个工具转换为 MCP 标准的 `Tool` 对象，其中 `name` 和 `description` 字段直接映射，`inputSchema` 字段对应工具的 JSON Schema 参数模式。这保证了通过 MCP 协议发现的工具信息与 Regex 模式下从 ToolRegistry 直接读取的信息完全一致。
-`@server.call_tool()` 装饰器注册的异步函数负责响应 `tools/call` 请求。该函数接收工具名称和参数字典，通过 `registry.execute_tool(name, arguments)` 执行工具，然后将结果序列化为 JSON 字符串并包装为 `TextContent` 对象返回。异常处理方面，工具执行中发生的任何异常都被捕获，错误信息和堆栈跟踪以 JSON 格式返回给客户端，而非直接传播异常，确保 JSON-RPC 通道的稳定性。
-Server 的入口函数 `main()` 通过 `stdio_server()` 上下文管理器启动 stdio 传输层，然后运行 MCP Server 的事件循环。启动命令为 `python -m mcp_protocol.server`，作为主进程的子进程运行。整个 Server 实现仅 72 行代码，其核心职责是协议适配——将 ToolRegistry 的同步函数调用接口适配为 MCP 的异步 JSON-RPC 接口。
+本系统的 MCP Server 实现在 `mcp_protocol/server.py` 中，是一个精简的桥接层（仅 72 行代码），将 ToolRegistry 中已注册的工具暴露为 MCP 协议端点。Server 通过装饰器注册两个核心处理函数：`@server.list_tools()` 将 ToolRegistry 中的工具信息转换为 MCP 标准的 `Tool` 对象（保证与 Regex 模式读取的信息完全一致），`@server.call_tool()` 接收工具名称和参数后通过 `registry.execute_tool()` 执行并将结果序列化为 JSON 返回。异常被统一捕获并以 JSON 格式返回客户端而非传播，确保 JSON-RPC 通道稳定。Server 通过 stdio 传输层作为主进程的子进程运行，其核心职责是协议适配——将 ToolRegistry 的同步函数调用接口适配为 MCP 的异步 JSON-RPC 接口。
   3.3.3 MCPAgent 异步桥接机制
-MCPAgent 是三种实现中技术复杂度最高的，其核心挑战在于协调同步的 BaseAgent 执行循环与异步的 MCP 协议通信。MCPAgent 通过"异步外壳、同步内核"的架构设计解决了这一问题。
-MCPAgent 覆写了 BaseAgent 的 `run()` 方法，将其替换为 `_run_with_mcp()` 方法。该方法的执行流程如下： 
-（1）MCP 会话建立。创建 `StdioServerParameters` 配置对象，指定子进程命令（`sys.executable` 即当前 Python 解释器）、模块路径（`mcp_protocol.server`）和工作目录（项目根目录）。通过 `stdio_client()` 上下文管理器启动 MCP Server 子进程并建立 stdio 通信通道，然后通过 `ClientSession` 上下文管理器完成 MCP 协议初始化握手。
-（2）工具发现。调用 `session.list_tools()` 通过 MCP 协议获取工具列表，将返回的 `Tool` 对象转换为与 ToolRegistry 相同的字典格式（包含 name、description、parameters 字段），缓存到 `_mcp_tools` 列表中。
-（3）执行循环桥接。这是最关键的步骤。由于 BaseAgent 的 `run()` 方法是同步的（包含同步的 HTTP 请求和工具调用），而 MCP 通信需要 asyncio 事件循环保持运行，MCPAgent 通过 `loop.run_in_executor(None, lambda: super().run(...))` 将同步的 BaseAgent 执行循环放到线程池中运行。这样，asyncio 事件循环保持空闲以处理 MCP JSON-RPC 消息，而 BaseAgent 的同步执行在工作线程中正常进行。
-（4）跨线程工具调用。当 BaseAgent 在工作线程中调用 `invoke_tool()` 时，MCPAgent 的实现需要将调用调度回 asyncio 事件循环。`_call_mcp_tool()` 方法通过 `asyncio.run_coroutine_threadsafe(_call(), self._loop)` 将异步的 `session.call_tool()` 协程提交到事件循环，然后通过 `future.result(timeout=120)` 同步等待结果（超时时间 120 秒）。MCP Server 返回的 `TextContent` 列表被合并为文本字符串，如果是合法 JSON 则解析为 Python 对象，否则作为纯文本返回。
-此外，MCPAgent 还处理了同步/异步桥接的边界情况：当 `_run_with_mcp()` 被调用时，如果当前已存在运行中的 asyncio 事件循环（如 FastAPI 的 uvicorn 环境），则通过 `ThreadPoolExecutor` 在新线程中启动独立的事件循环以避免嵌套事件循环的问题；否则直接使用 `asyncio.run()` 启动。
+MCPAgent 是三种实现中技术复杂度最高的，其核心挑战在于协调同步的 BaseAgent 执行循环与异步的 MCP 协议通信。MCPAgent 通过"异步外壳、同步内核"的架构解决这一问题：覆写 `run()` 方法为 `_run_with_mcp()`，首先创建配置对象并通过 `stdio_client()` 启动 MCP Server 子进程建立通信通道，再通过 `ClientSession` 完成协议握手，调用 `session.list_tools()` 获取并缓存工具列表。执行循环桥接是关键步骤——通过 `loop.run_in_executor()` 将同步的 BaseAgent 执行循环放到线程池运行，使 asyncio 事件循环保持空闲以处理 MCP 消息。跨线程工具调用时，`_call_mcp_tool()` 通过 `asyncio.run_coroutine_threadsafe()` 将异步的 `session.call_tool()` 提交到事件循环并同步等待结果（超时 120 秒）。系统还处理同步/异步边界情况——若当前已有运行中的事件循环则在新线程中启动独立事件循环避免嵌套，否则直接使用 `asyncio.run()` 启动。
  
 [图3.1. MCPAgent 异步桥接架构图。主线程运行 asyncio 事件循环（管理 MCP stdio 通信），工作线程运行 BaseAgent 同步执行循环（LLM 调用和 ReAct 迭代），两者通过 run_in_executor 和 run_coroutine_threadsafe 双向桥接]
 
@@ -175,18 +152,9 @@ SKILL.md 的设计遵循以下原则：（1）人机双可读——文档同时�
 文档的内容结构包括：CLI 工具路径（`skill_cli/tool_cli.py`）、全局约束说明、四个子命令的详细说明（每个子命令包含使用方法、参数表和示例命令）、输出格式规范（JSON 示例）以及注意事项。参数表以 Markdown 表格呈现，包含参数名、类型、默认值和说明四列。与 Regex 模式将参数信息嵌入 Prompt 模板不同，Skill-CLI 模式的工具描述完全来自这份独立的文档文件。
 值得注意的是，SKILL.md 中有一条关键约束："不要在命令中指定 --session_id 参数，系统会自动注入正确的 session_id"。这一设计使 LLM 生成的命令更加简洁（省去了每条命令都需要附带 session_id 的冗余），同时将会话管理的控制权保留在系统侧，由 BaseAgent 的 `_execute_with_side_effects()` 统一注入。
   3.4.2 CLI 入口与参数解析（tool_cli.py）
-`tool_cli.py` 是 Skill-CLI 模式中工具的命令行入口程序，基于 Python Fire 库实现自动化的命令行接口生成。该文件定义了一个 `ArxivToolCLI` 类，包含四个与核心工具一一对应的方法：`search_papers()`、`download_pdf()`、`translate_pdf()` 和 `cache_status()`。
-每个方法的实现遵循统一的模式：延迟导入对应的工具函数（避免模块级别的循环依赖），将命令行参数透传给工具函数，然后通过 `_json_out()` 辅助函数将返回结果序列化为 JSON 并输出到标准输出。`_json_out()` 使用 `json.dumps()` 进行序列化，设置 `ensure_ascii=False` 以正确处理中文字符，`default=str` 以处理 datetime 等非标准 JSON 类型。
-Python Fire 库自动将类的公开方法映射为子命令，将方法参数映射为命令行选项。例如 `ArxivToolCLI.search_papers(max_results=20, aspect="AI")` 对应命令行 `python tool_cli.py search_papers --max_results=20 --aspect=AI`。Fire 还自动处理类型转换（字符串到整数、布尔值等）和帮助信息生成。
-`tool_cli.py` 的设计使其同时满足两种使用场景：作为 SkillAgent 的工具执行后端（由子进程调用），以及作为独立的命令行工具供开发者直接使用（方便调试和手动操作）。
+`tool_cli.py` 是 Skill-CLI 模式中工具的命令行入口程序，基于 Python Fire 库实现自动化命令行接口生成。该文件定义 `ArxivToolCLI` 类，包含四个与核心工具一一对应的方法。每个方法遵循统一模式：延迟导入对应工具函数，将命令行参数透传给工具函数，通过 `_json_out()` 辅助函数将返回结果序列化为 JSON 并输出到标准输出。Python Fire 自动将类方法映射为子命令、方法参数映射为命令行选项并处理类型转换和帮助信息生成。该设计使其同时满足作为 SkillAgent 工具执行后端（子进程调用）和独立命令行工具（开发者直接使用）两种场景。
   3.4.3 SkillAgent 的 Prompt 与命令提取
-SkillAgent 继承自 BaseAgent，其独特之处在于 Prompt 构造和响应解析两个环节。
-Prompt 构造方面，SkillAgent 覆写了 `format_tools_for_prompt()` 方法，将默认的 JSON Schema 格式工具描述替换为完整的 SKILL.md 文档内容。在构造函数中，`_load_skill_doc()` 方法读取 SKILL.md 文件并去除 YAML frontmatter（`---...---` 包围的元数据段），只保留文档正文。`build_messages()` 方法使用专用的 `get_skill_prompt()` 模板替代标准的 ReAct Prompt，该模板的核心差异在于：将输出格式从 `Thought/Action/Observation` 改为 `Thought/Command/Observation`，其中 Command 要求以 Markdown 代码块（` ```bash ... ``` `）包裹 Bash 命令，或输出 `FINISH` 表示任务完成。模板中明确约束 LLM 不得添加 `--session_id` 参数，并提示翻译任务为异步操作、调用后应直接结束。
-命令提取方面，`_parse_skill_text()` 方法实现了从 LLM 响应中提取 Bash 命令的逻辑。首先使用正则表达式 `Thought:\s*(.*?)(?=\nCommand:|$)` 和 `Command:\s*(.*?)(?=\nObservation:|$)` 分别提取推理文本和命令文本。然后从命令文本中匹配 ` ```bash ... ``` ` 代码块，提取其中的原始命令字符串；若未找到代码块，则将整行文本作为命令处理。
-命令字符串的解析由 `_parse_cli_command()` 方法完成。该方法使用 `shlex.split()` 按 Shell 语法分词（正确处理引号和转义字符），然后在分词结果中搜索预定义的子命令名称（search_papers、download_pdf、translate_pdf、cache_status），再通过正则 `--(\w+)=(.+)` 提取所有 `--key=value` 格式的参数。参数值经过自动类型推断：`"true"/"false"` 转为布尔值，`"none"` 转为 `None`，数字字符串转为 `int` 或 `float`，其余保持为字符串。
-解析完成后，CLI 子命令名通过 `CLI_TO_REGISTRY` 映射字典（如 `"search_papers" → "get_recently_submitted_cs_papers"`）转换为 ToolRegistry 中的工具名称，原始命令字符串以 `_raw_cmd` 键附加到参数字典中（供历史记录格式化时恢复原始命令文本）。
-工具执行方面，`invoke_tool()` 方法接收经过 `_execute_with_side_effects()` 修正后的参数（session_id 已被注入），根据 `REGISTRY_TO_CLI` 反向映射表将 ToolRegistry 工具名转换回 CLI 子命令名，然后从参数字典重建完整的命令行（过滤掉以下划线开头的内部参数）。命令通过 `subprocess.run()` 在子进程中执行，设置了 120 秒超时保护和标准输出/错误的完整捕获。子进程的标准输出先尝试作为 JSON 解析（供 `_execute_with_side_effects()` 进行结构化处理），解析失败则截断为 1000 字符的纯文本返回。
-SkillAgent 还覆写了 `format_history()` 方法，将历史记录中的 `Action` 字段替换为 `Command` 并以代码块形式展示，使历史记录的格式与 Skill Prompt 模板保持一致。
+SkillAgent 继承自 BaseAgent，其独特之处在于 Prompt 构造和响应解析。Prompt 构造方面，SkillAgent 覆写 `format_tools_for_prompt()` 方法将工具描述替换为完整 SKILL.md 文档内容，`build_messages()` 使用专用的 `get_skill_prompt()` 模板将输出格式从 `Thought/Action/Observation` 改为 `Thought/Command/Observation`，Command 要求以 Markdown 代码块包裹 Bash 命令或输出 FINISH 终止。命令提取方面，`_parse_skill_text()` 方法通过正则提取推理文本和命令文本，从命令文本中匹配 ` ```bash ... ``` ` 代码块提取原始命令字符串。`_parse_cli_command()` 方法使用 `shlex.split()` 按 Shell 语法分词并搜索预定义子命令名称，通过正则 `--(\w+)=(.+)` 提取参数并进行类型推断（转换布尔值、null、数字）。工具执行时 `invoke_tool()` 方法将 ToolRegistry 工具名转换回 CLI 子命令名，从参数字典重建完整命令行并通过 `subprocess.run()` 在子进程中执行（120 秒超时），标准输出先尝试作为 JSON 解析否则截断为 1000 字符纯文本返回。
   3.4.4 优势与局限分析
 优势：Skill-CLI 模式在基准评测中展现出一个令人注目的特性——最低的 LLM 推理时间和 Token 消耗（平均 2862 毫秒和 4369 Token，分别比 Regex/MCP 模式低约 50% 和 22%）。这一优势的成因值得分析：SKILL.md 文档以自然语言和命令示例呈现工具信息，相比 JSON Schema 格式的工具描述，LLM 更容易理解和生成符合预期的输出，因此需要更少的推理步骤和输出 Token。此外，文档驱动的方式使新工具的接入只需编写 Markdown 文档，无需了解智能体框架的内部机制，降低了工具开发的门槛。子进程执行也提供了一定程度的进程隔离。
 局限：该模式的主要局限在于命令解析的脆弱性和子进程开销。虽然 `shlex.split()` 和正则参数提取在常规情况下工作良好，但当 LLM 生成的命令格式偏离预期（如遗漏引号、参数值包含空格等）时，解析可能失败。子进程的启动和 Python 解释器初始化（包括模块导入）在每次工具调用时都会产生开销，这使其工具执行时间（平均 1081 毫秒）高于 Regex 和 MCP 模式（均约 880 毫秒）。此外，命令行的参数传递方式天然不适合复杂数据结构（如嵌套对象或长列表），对于参数较复杂的工具可能需要额外的序列化处理。
@@ -371,17 +339,10 @@ Skill-CLI 模式的平均 Token 用量为 4369，比 Regex 和 MCP 模式（均�
 | composite_01 | MCP | 8248 | 6919 | 1280 | 3.0 | 6798 |
 | composite_01 | Skill-CLI | 7007 | 5081 | 1882 | 3.0 | 6176 |
 
-如图 5-4 所示，不同任务类型呈现出显著不同的性能特征。
+如图 5-4 所示，不同任务类型呈现出显著不同的性能特征。搜索类任务中 MCP 模式表现最优（平均 1400-1700ms），其 LLM 时间极低（约 500ms）得益于 MCP 协议的动态工具发现机制。下载任务中 Regex 模式最快（3812ms），体现了进程内调用的低延迟优势。翻译和缓存任务中 Skill-CLI 模式显著领先（分别为 4499ms 和 1554ms），原因在于 SKILL.md 文档对异步任务语义的清晰表达使 LLM 避免了不必要的轮询迭代。复合任务中三种模式表现接近（约 7000-8000ms），多步骤操作平衡了各模式的差异。如图 5-5 所示，迭代次数分布验证了有界控制的合理性：绝大多数任务在 2 轮内完成，复合任务需 3 轮，翻译任务在 Regex/MCP 模式下需 4 轮，所有任务均未触及 5 轮上限。
  
 [图5.4. 按任务类型的各模式耗时分布图。横轴为任务ID，每个任务有三组柱状条对应三种模式，纵轴为总耗时(ms)]
 
-搜索类任务（search_01 至 search_03）：MCP 模式表现最优，平均耗时仅 1400—1700ms，远低于 Regex 模式（4100—4800ms）和 Skill-CLI 模式（2700—3400ms）。MCP 模式在搜索任务上的 LLM 时间极低（约 500ms），这可能与 MCP 协议的工具发现机制有关——MCP Server 在运行时动态提供结构化工具定义，减少了 LLM 需要从 Prompt 中理解工具用法的认知负担。三种模式的 Token 用量中，Regex 和 MCP 模式一致（均约 4900），Skill-CLI 模式略低（约 3900），这反映了 SKILL.md 文档相比 JSON Schema 的更紧凑表示。
-下载任务（download_01）：Regex 模式表现最优（3812ms），MCP（5246ms）和 Skill-CLI（5520ms）模式基本持平。下载任务的工具时间主要消耗在 ArXiv PDF 下载和 SHA256 校验上，三种模式的工具时间差异（720—1159ms）反映了调用路径的开销差异。
-翻译任务（translate_01）：三种模式的差异最为显著。Skill-CLI 模式仅需 4499ms 且 2 轮迭代，而 Regex 模式（15153ms）和 MCP 模式（16642ms）均需要 4 轮迭代。翻译任务的异步特性（提交翻译后轮询状态）导致 Regex 和 MCP 模式需要更多轮次来确认任务完成，而 Skill-CLI 模式的 SKILL.md 文档中明确描述了"提交翻译任务"的行为语义，使得 LLM 能够在提交后直接输出 FINISH 而不进入不必要的轮询循环。这一发现揭示了文档驱动工具描述在复杂任务语义传达上的优势。
-缓存查询任务（cache_01）：Skill-CLI 模式（1554ms）同样大幅领先于 Regex（9196ms）和 MCP（7960ms）模式。值得注意的是，cache_01 的工具时间极低（Regex 仅 20ms，MCP 仅 41ms），说明缓存查询本身是一个几乎零开销的内存操作，耗时主要消耗在 LLM 推理上。Regex 模式的 LLM 时间高达 9143ms，可能是会话上下文中的论文列表信息使得 Prompt 长度较长，推理时间相应增加。
-复合任务（composite_01）：三种模式的表现相对接近（Regex 7108ms、MCP 8248ms、Skill-CLI 7007ms），均需要 3 轮迭代完成搜索和下载两步操作。这说明在多步骤任务中，各模式的差异被工具调用和多轮推理的累计时间所平衡。
-如图 5-5 所示，从迭代次数分布来看，绝大多数任务在 2 轮内完成（第 1 轮调用工具，第 2 轮根据 Observation 生成 FINISH），复合任务需要 3 轮（第 1 轮搜索，第 2 轮下载，第 3 轮 FINISH），翻译任务在 Regex/MCP 模式下需要 4 轮。所有任务均未触及 5 轮的有界上限，验证了 max_iterations=5 设定的合理性。
- 
 [图5.5. 各模式迭代次数热力图。横轴为模式类型，方块为迭代次数]
 
   5.3.4 结果讨论与架构选型建议
@@ -395,19 +356,12 @@ API 成本：按照 Token 用量估算，Skill-CLI 模式的平均成本约为 R
 （3）追求最低工具调用延迟和最简部署时，推荐 Regex 模式。进程内直接调用避免了跨进程通信和子进程启动的开销，且不依赖外部服务或文件系统，适合快速原型开发和轻量级部署。
 在实际项目中，三种模式并非互斥关系。本系统通过 BaseAgent + ToolRegistry 的共享架构确保了模式之间的可切换性，开发者可以根据具体场景在部署时灵活选择，甚至在同一系统中为不同功能模块采用不同模式。
 5.4 健壮性验证
-  5.4.1 异常场景测试（网络超时、PDF 异常、并发冲突）
-为验证系统在异常条件下的表现，本文在基准评测之外补充了以下异常场景测试。
-网络超时测试：在 download_01 和 translate_01 任务执行过程中，人工模拟 ArXiv API 响应延迟超过预设超时时间的场景。测试结果表明，pdf_download_tool 中的 requests 库超时机制（connect=10s, read=60s）能够正确触发超时异常，BaseAgent 的 _execute_with_side_effects() 方法将异常信息作为 Observation 返回给 LLM，LLM 在后续迭代中生成了包含错误说明的 FINISH 输出。整个过程在有界迭代限制内正常终止，未出现死循环或无响应。
-PDF 异常测试：使用损坏的 PDF 文件（0 字节和格式不合法的文件）测试翻译流程。TranslateRunner 在调用 pdf2zh 翻译引擎时捕获到异常，将任务状态从 RUNNING 更新为 FAILED，同时通过 EventBus 向前端推送包含错误详情的 translate_error 事件。前端接收到事件后正确更新了 UI 状态，显示错误信息并允许用户重试。
-并发冲突测试：模拟两个会话同时下载同一篇论文的场景。pdf_download_tool 中的文件锁机制（.lock 文件 + fcntl.flock）成功保证了互斥访问：先到达的请求获取锁并执行下载，后到达的请求在锁文件存在时检测到正在下载的状态，返回等待提示而非重复下载。锁在下载完成后正确释放，后续请求能够直接命中文件缓存。
+  5.4.1 异常场景测试
+为验证系统在异常条件下的表现，本文补充了三类异常场景测试。网络超时测试中，人工模拟 ArXiv API 响应延迟超过预设超时时间，pdf_download_tool 的超时机制正确触发异常，BaseAgent 将异常信息作为 Observation 返回给 LLM，LLM 在后续迭代中生成包含错误说明的 FINISH 输出，整个过程在有界迭代限制内正常终止。PDF 异常测试中，使用损坏的 PDF 文件测试翻译流程，TranslateRunner 捕获异常后将任务状态更新为 FAILED，并通过 EventBus 向前端推送错误事件，前端正确显示错误信息并允许重试。并发冲突测试中，模拟两个会话同时下载同一篇论文，文件锁机制（fcntl.flock）成功保证了互斥访问，避免了重复下载。
   5.4.2 有界 ReAct 边界行为验证
-有界 ReAct 机制是本系统的核心健壮性设计之一。在当前基准评测的 210 次运行中，所有任务的迭代次数均未超过 4 轮（最大为翻译任务在 Regex/MCP 模式下的 4 轮），远低于 max_iterations=5 的上限。这说明在正常任务场景下，有界控制机制不会对任务完成产生负面影响。
-关于有界迭代在极端场景下的终止行为（如恶意构造的循环指令、持续解析失败等），以及 FORCE_STOP 终止类型的触发条件和降级策略，将在后续工作中通过专门设计的边界条件测试集进行验证。
+在 210 次基准评测运行中，所有任务的迭代次数均未超过 4 轮，远低于 max_iterations=5 的上限，说明有界控制机制不会对正常任务完成产生负面影响。极端场景下的终止行为（如循环指令、持续解析失败等）及 FORCE_STOP 触发条件将在后续工作中验证。
   5.4.3 降级策略与恢复能力测试
-系统的降级策略主要体现在以下几个方面的容错处理： 
-翻译降级：当翻译引擎 pdf2zh 处理失败时，TranslateRunner 的状态机将任务标记为 FAILED 而非保持在 RUNNING 状态，避免了僵尸任务。同时，已完成的中间文件（如 mono 单语版本）不会被清理，用户可以获得部分翻译结果。
-缓存降级：多层缓存架构中，当内存缓存未命中时自动回退到文件系统缓存，再回退到数据库查询。即使数据库连接暂时不可用，文件系统缓存仍可提供基本的 PDF 访问能力。启动时的资产一致性校验（validate_local_paths）能够检测并修复数据库记录与文件系统不一致的情况。
-会话降级：当会话上下文中的论文引用无法解析（如用户输入了不存在的编号）时，store.resolve_paper() 的四种匹配模式（整数索引、字符串 ID、null 返回全部、正则匹配）在依次尝试后返回空结果，BaseAgent 将空结果作为 Observation 传回 LLM，由 LLM 生成友好的错误提示，而非抛出未处理异常。
+系统的降级策略体现在多层次的容错处理中。翻译引擎处理失败时，状态机将任务标记为 FAILED 避免僵尸任务，同时保留已完成的中间文件供用户获取部分结果。多层缓存架构在内存缓存未命中时自动回退到文件系统缓存和数据库查询，启动时的资产一致性校验能够检测并修复记录与文件系统的不一致。会话上下文中的论文引用无法解析时，resolve_paper() 的多种匹配模式依次尝试后返回空结果，由 LLM 生成友好的错误提示而非抛出未处理异常。
 5.5 本章小结
 本章设计并实施了系统化的基准评测实验，共执行 210 次独立运行（7 任务 × 3 模式 × 10 次重复），从性能和准确性两个维度全面对比了三种工具调用模式的表现。
 在性能方面，Skill-CLI 模式以平均 3981ms 的总耗时和 4369 的 Token 用量显著优于 Regex 模式（6946ms / 5591 tokens）和 MCP 模式（6119ms / 5590 tokens），优势主要来源于更简洁的 Prompt 设计带来的 LLM 推理加速。MCP 模式在搜索类任务上表现突出，Regex 模式在工具调用延迟上最低。三种模式的框架开销均不足总耗时的 1%，验证了 BaseAgent 架构的轻量性。
