@@ -53,6 +53,16 @@ def _setup_chinese_font():
 
 _HAS_CN = _setup_chinese_font()
 
+# 全局字号
+plt.rcParams.update({
+    "font.size": 13,
+    "axes.titlesize": 15,
+    "axes.labelsize": 13,
+    "xtick.labelsize": 12,
+    "ytick.labelsize": 12,
+    "legend.fontsize": 12,
+})
+
 def _label(cn: str, en: str) -> str:
     return cn if _HAS_CN else en
 
@@ -185,30 +195,30 @@ def plot_time_breakdown(rows: list[dict], output_dir: str):
             wedges, texts, autotexts = ax.pie(
                 sizes, colors=comp_colors, autopct=autopct_func,
                 startangle=90, pctdistance=0.65,
-                textprops={"fontsize": 6},
+                textprops={"fontsize": 9},
             )
             for at in autotexts:
-                at.set_fontsize(5.5)
+                at.set_fontsize(8)
 
             # 行首显示 agent 名
             if j == 0:
-                ax.set_ylabel(AGENT_LABELS.get(a, a), fontsize=9, fontweight="bold")
+                ax.set_ylabel(AGENT_LABELS.get(a, a), fontsize=14, fontweight="bold")
             # 首行显示 task 名
             if i == 0:
-                ax.set_title(t, fontsize=8, fontweight="bold")
+                ax.set_title(t, fontsize=14, fontweight="bold")
             # 右下角显示总耗时
-            ax.text(0, -1.25, f"{total:.0f}ms", ha="center", fontsize=6, color="gray")
+            ax.text(0, -1.25, f"{total:.0f}ms", ha="center", fontsize=9, color="gray")
 
     # 图例
     from matplotlib.patches import Patch
     handles = [Patch(facecolor=c, label=n) for c, n in zip(comp_colors, comp_names)]
-    fig.legend(handles=handles, loc="lower center", ncol=3, fontsize=8,
+    fig.legend(handles=handles, loc="lower center", ncol=3, fontsize=13,
                bbox_to_anchor=(0.5, 0.01))
 
     title = _label("各任务耗时分解", "Time Breakdown per Task")
-    fig.suptitle(f"{title} (N={len(rows)})\n{sub}", fontsize=11)
-    fig.tight_layout(rect=[0, 0.08, 1, 0.93])
-    fig.savefig(os.path.join(output_dir, "time_breakdown.png"), dpi=150)
+    fig.suptitle(f"{title} (N={len(rows)})\n{sub}", fontsize=20)
+    fig.tight_layout(rect=[0, 0.08, 1, 0.99])
+    fig.savefig(os.path.join(output_dir, "time_breakdown.png"), dpi=300)
     plt.close(fig)
     print(f"  time_breakdown.png")
 
@@ -255,11 +265,11 @@ def plot_completion_rate(rows: list[dict], output_dir: str):
                           label=AGENT_LABELS.get(a, a), color=AGENT_COLORS.get(a, "#999"))
             for bar, v in zip(bars, vals):
                 ax.text(bar.get_x() + bar.get_width() / 2, v + 1,
-                        f"{v:.0f}%", ha="center", fontsize=7)
+                        f"{v:.0f}%", ha="center", fontsize=12)
         ax.set_ylabel(ylabel)
         ax.set_ylim(0, 115)
-        ax.set_title(subtitle, fontsize=10)
-        ax.legend(fontsize=8)
+        ax.set_title(subtitle, fontsize=18)
+        ax.legend(fontsize=12)
 
     _draw_rate_bars(ax1, 0,
                     _label("完成率 (%)", "Completion (%)"),
@@ -272,9 +282,9 @@ def plot_completion_rate(rows: list[dict], output_dir: str):
     ax2.set_xticklabels(tasks, rotation=30, ha="right")
 
     title = _label("各任务准确性对比", "Accuracy per Task")
-    fig.suptitle(f"{title} (N={len(rows)})", fontsize=12, y=1.0)
-    fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, "accuracy_comparison.png"), dpi=150)
+    fig.suptitle(f"{title} (N={len(rows)})", fontsize=20)
+    fig.tight_layout(rect=[0, 0, 1, 1.005])
+    fig.savefig(os.path.join(output_dir, "accuracy_comparison.png"), dpi=300)
     plt.close(fig)
     print(f"  accuracy_comparison.png")
 
@@ -332,15 +342,15 @@ def plot_iterations(rows: list[dict], output_dir: str):
         if l not in unique_labels:
             unique_labels.append(l)
             unique_handles.append(h)
-    ax.legend(unique_handles, unique_labels, fontsize=8)
+    ax.legend(unique_handles, unique_labels, fontsize=12)
 
     ax.set_ylabel(_label("迭代次数", "Iterations"))
     title = _label("各任务迭代次数分布", "Iteration Distribution per Task")
-    ax.set_title(f"{title} (N={len(rows)})\n{sub}", fontsize=10)
+    ax.set_title(f"{title} (N={len(rows)})\n{sub}", fontsize=15)
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, "iteration_boxplot.png"), dpi=150)
+    fig.savefig(os.path.join(output_dir, "iteration_boxplot.png"), dpi=300)
     plt.close(fig)
     print(f"  iteration_boxplot.png")
 
@@ -379,7 +389,7 @@ def plot_iterations_heatmap(rows: list[dict], output_dir: str):
     for i in range(n_agents):
         for j in range(n_tasks):
             text = ax.text(j, i, f"{data[i, j]:.1f}",
-                          ha="center", va="center", color="black", fontsize=8)
+                          ha="center", va="center", color="black", fontsize=12)
 
     ax.set_xticks(range(n_tasks))
     ax.set_xticklabels(tasks, rotation=30, ha="right")
@@ -388,13 +398,13 @@ def plot_iterations_heatmap(rows: list[dict], output_dir: str):
 
     # colorbar
     cbar = plt.colorbar(im, ax=ax)
-    cbar.set_label(_label("平均迭代次数", "Avg Iterations"), rotation=270, labelpad=15)
+    cbar.set_label(_label("平均迭代次数", "Avg Iterations"), rotation=270, labelpad=15, fontsize=13)
 
     title = _label("各任务迭代次数热力图", "Iteration Heatmap per Task")
-    ax.set_title(f"{title} (N={len(rows)})", fontsize=10)
+    ax.set_title(f"{title} (N={len(rows)})", fontsize=15)
 
     fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, "iteration_heatmap.png"), dpi=150)
+    fig.savefig(os.path.join(output_dir, "iteration_heatmap.png"), dpi=300)
     plt.close(fig)
     print(f"  iteration_heatmap.png")
 
@@ -431,12 +441,12 @@ def plot_per_task_time(rows: list[dict], output_dir: str):
 
     ax.set_ylabel(_label("平均耗时 (ms)", "Avg Time (ms)"))
     title = _label("各任务平均耗时", "Avg Time per Task")
-    ax.set_title(f"{title} (N={len(rows)})\n{sub}", fontsize=10)
-    ax.legend(fontsize=8)
+    ax.set_title(f"{title} (N={len(rows)})\n{sub}", fontsize=15)
+    ax.legend(fontsize=12)
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, "per_task_time.png"), dpi=150)
+    fig.savefig(os.path.join(output_dir, "per_task_time.png"), dpi=300)
     plt.close(fig)
     print(f"  per_task_time.png")
 
@@ -465,18 +475,18 @@ def plot_token_usage(rows: list[dict], output_dir: str):
         for bar, v in zip(bars, avgs):
             if v > 0:
                 ax.text(bar.get_x() + bar.get_width() / 2, v + 50,
-                        f"{v:.0f}", ha="center", fontsize=7)
+                        f"{v:.0f}", ha="center", fontsize=11)
 
     ax.set_xticks([i + bar_w * (n_agents - 1) / 2 for i in range(n_tasks)])
     ax.set_xticklabels(tasks, rotation=30, ha="right")
-    ax.set_ylabel("Tokens")
+    ax.set_ylabel(_label("词元用量 (Tokens)", "Tokens"))
     title = _label("各任务平均 Token 用量", "Avg Token Usage per Task")
-    ax.set_title(f"{title} (N={len(rows)})\n{sub}", fontsize=10)
-    ax.legend(fontsize=8)
+    ax.set_title(f"{title} (N={len(rows)})\n{sub}", fontsize=15)
+    ax.legend(fontsize=12)
     ax.yaxis.set_major_locator(ticker.MaxNLocator(integer=True))
 
     fig.tight_layout()
-    fig.savefig(os.path.join(output_dir, "token_usage.png"), dpi=150)
+    fig.savefig(os.path.join(output_dir, "token_usage.png"), dpi=300)
     plt.close(fig)
     print(f"  token_usage.png")
 

@@ -28,3 +28,4 @@ environment_backup.yml
 *.pdf.part
 # paper docs
 paper-doc/
+paper-aigc/
